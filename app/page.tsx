@@ -14,6 +14,7 @@ import {
 import { UploadCard } from '@/components/upload-card'
 import { ResultadoCard } from '@/components/resultado-card'
 import { TextoCopiavel } from '@/components/texto-copiavel'
+import { RelatorioDownload } from '@/components/relatorio-download'
 import { ResultadoAnalise } from '@/types/analise-tipos'
 
 type Estado = 'inicial' | 'carregando' | 'resultado' | 'erro'
@@ -242,8 +243,9 @@ export default function Home() {
               </div>
             )}
 
-            {/* Textos gerados */}
+            {/* Relatório + Textos gerados */}
             <div className="space-y-4 mb-6">
+              <RelatorioDownload resultado={resultado} nomeEdital={edital?.name} />
               <TextoCopiavel
                 titulo="Recurso administrativo"
                 texto={resultado.recurso_administrativo}

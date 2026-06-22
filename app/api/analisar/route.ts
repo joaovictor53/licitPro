@@ -11,35 +11,47 @@ Você receberá dois documentos em texto extraído de PDF:
 - DOCUMENTO 1: O EDITAL da licitação
 - DOCUMENTO 2: A PROPOSTA e/ou documentação de habilitação do CONCORRENTE que venceu a fase de lances
 
-Sua missão exclusiva é identificar NÃO CONFORMIDADES na documentação do concorrente em relação ao exigido pelo edital. Foque em:
-- Documentos ausentes que o edital exige
-- Certidões ou documentos com validade vencida
-- Atestados técnicos que não cobrem o objeto contratado
-- Documentos que não atendem às especificações do edital
-- Irregularidades cadastrais (SICAF, CEIS, CNEP)
-- Exigências técnicas não comprovadas
+Sua missão exclusiva é identificar NÃO CONFORMIDADES na documentação do concorrente em relação ao exigido pelo edital.
 
-Para cada não conformidade, classifique como:
-- "material": vício insanável que fundamenta inabilitação
-- "sanável": vício que pode ser corrigido por diligência
+REGRAS DE ANÁLISE OBRIGATÓRIAS:
+1. Cite o número exato do item, subitem ou cláusula do edital que foi descumprido (ex: "Item 8.3.2", "Cláusula 10, alínea b").
+2. Descreva EXATAMENTE o que o edital exige e o que o concorrente apresentou (ou deixou de apresentar). Não use linguagem vaga como "documento incompleto" — diga qual documento, qual a exigência específica e por que o apresentado não atende.
+3. Para certidões vencidas: informe a data de validade exigida pelo edital e a data de emissão/validade do documento apresentado.
+4. Para atestados de capacidade técnica: especifique o objeto do contrato a comprovar, o que o edital pede (quantidade, prazo, especificação técnica) e o que o atestado apresentado comprova.
+5. Fundamente cada irregularidade com o artigo de lei mais específico possível (art. X, §Y, inciso Z).
 
-RESPONDA APENAS com um objeto JSON válido, sem texto antes ou depois. Use este formato exato:
+CATEGORIAS A VERIFICAR:
+- Documentos de habilitação ausentes (regularidade fiscal, trabalhista, econômico-financeira, técnica)
+- Certidões com validade vencida (CND RFSS, FGTS, CNDT, certidão estadual, certidão municipal)
+- Qualificação técnica insuficiente (atestados que não comprovam o objeto, sem acervo técnico adequado)
+- Qualificação econômico-financeira (balanço patrimonial, índices de liquidez, capital mínimo)
+- Irregularidades no objeto da proposta (especificações técnicas divergentes, preço inexequível)
+- Irregularidades cadastrais (SICAF desatualizado, CEIS, CNEP, sanções administrativas)
+- Irregularidades formais inabilitadoras (documentos sem assinatura, sem reconhecimento de firma quando exigido, sem vigência)
+
+CLASSIFICAÇÃO:
+- "material": vício insanável que fundamenta inabilitação imediata (ex: documento ausente, validade vencida não sanável, qualificação técnica não comprovada)
+- "sanável": vício formal que pode ser corrigido por diligência nos termos do art. 64 da Lei 14.133/2021
+
+RESPONDA APENAS com um objeto JSON válido, sem texto antes ou depois, sem markdown. Use EXATAMENTE este formato:
 
 {
-  "resumo": "resumo em 2-3 frases",
+  "resumo": "resumo objetivo em 2-3 frases descrevendo o número de irregularidades, as mais graves e a conclusão sobre a habilitação",
   "total_irregularidades": 0,
   "nao_conformidades": [
     {
       "id": 1,
-      "titulo": "nome curto da irregularidade",
-      "item_edital": "item/cláusula do edital descumprido",
-      "problema": "descrição objetiva do que está errado ou ausente",
+      "titulo": "nome curto e descritivo da irregularidade (ex: CND Federal vencida)",
+      "item_edital": "número exato do item/cláusula do edital (ex: Item 7.2, alínea c)",
+      "problema": "descrição DETALHADA e ESPECÍFICA: o que o edital exige, o que foi apresentado ou está ausente, e por que não atende ao requisito",
+      "evidencia": "transcrição ou resumo da passagem relevante do documento do concorrente que evidencia o problema, ou 'Documento não apresentado' se ausente",
+      "recomendacao": "argumento jurídico específico a usar no recurso administrativo para fundamentar este ponto",
       "gravidade": "material",
-      "fundamento_legal": "base legal aplicável"
+      "fundamento_legal": "artigo, parágrafo e inciso exatos da lei aplicável"
     }
   ],
-  "recurso_administrativo": "texto completo e formal do recurso, com cabeçalho, fundamentos fáticos e jurídicos, pedido expresso de inabilitação e encerramento formal",
-  "mensagem_pregoeiro": "mensagem direta ao pregoeiro declarando intenção de recorrer e apontando os pontos irregulares"
+  "recurso_administrativo": "texto completo e formal do recurso administrativo, com: (1) qualificação do recorrente, (2) tempestividade, (3) fundamentos fáticos detalhados de cada irregularidade com citação de evidências, (4) fundamentos jurídicos com artigos de lei, (5) pedido expresso de inabilitação e, subsidiariamente, de diligência, (6) encerramento formal com local, data e assinatura",
+  "mensagem_pregoeiro": "mensagem direta, objetiva e respeitosa ao pregoeiro declarando intenção de recorrer e apontando os pontos irregulares de forma numerada"
 }`
 
 // Limite seguro de caracteres para não ultrapassar o contexto do modelo (~128k tokens)
