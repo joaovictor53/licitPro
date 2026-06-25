@@ -1,9 +1,17 @@
 // app/api/analisar/route.ts
 
+import path from 'path'
+import { pathToFileURL } from 'url'
 import Groq from 'groq-sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { PDFParse } from 'pdf-parse'
 import { ResultadoAnalise } from '@/types/analise-tipos'
+
+// Configurar o worker do PDF.js para funcionar corretamente no ambiente Next.js (Turbopack/Webpack)
+const workerPath = pathToFileURL(
+  path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
+).toString()
+PDFParse.setWorker(workerPath)
 
 const SYSTEM_PROMPT = `Você é um especialista em licitações públicas brasileiras com profundo conhecimento da Lei nº 14.133/2021 (Nova Lei de Licitações), da Lei nº 8.666/1993, da Lei Complementar nº 123/2006, e da jurisprudência do TCU.
 
@@ -54,12 +62,128 @@ RESPONDA APENAS com um objeto JSON válido, sem texto antes ou depois, sem markd
   "mensagem_pregoeiro": "mensagem direta, objetiva e respeitosa ao pregoeiro declarando intenção de recorrer e apontando os pontos irregulares de forma numerada"
 }`
 
-// Limite seguro de caracteres para não ultrapassar o contexto do modelo (~128k tokens)
-const LIMITE_CARACTERES = 200_000
+// ── Limites de caracteres ajustados para o plano gratuito do Groq (12k TPM) ──
+// System prompt ≈ 1.000 tokens, resposta max = 2.048 tokens → sobram ~8.900 tokens para input
+// Para garantir que não passe, reduzindo ainda mais o limite de caracteres:
+const LIMITE_POR_DOCUMENTO = 3_500
 
-const truncarTexto = (texto: string, limite: number): string => {
-  if (texto.length <= limite) return texto
-  return texto.slice(0, limite) + '\n\n[DOCUMENTO TRUNCADO — TAMANHO EXCEDE O LIMITE DE CONTEXTO]'
+// Palavras-chave que identificam seções críticas em editais de licitação
+const PALAVRAS_CHAVE_EDITAL = [
+  'habilitação', 'habilita', 'inabilitação',
+  'qualificação técnica', 'qualificação econômico', 'qualificação econômica',
+  'regularidade fiscal', 'regularidade trabalhista',
+  'documentação', 'documentos de habilitação', 'documentos exigidos',
+  'certidão', 'certidões', 'cnd', 'fgts', 'cndt',
+  'atestado', 'capacidade técnica', 'acervo técnico',
+  'balanço patrimonial', 'capital social', 'patrimônio líquido',
+  'índice de liquidez', 'liquidez geral', 'liquidez corrente',
+  'proposta', 'proposta de preço', 'proposta comercial',
+  'objeto', 'especificação', 'especificações técnicas',
+  'sicaf', 'cadastro', 'ceis', 'cnep',
+  'prazo de validade', 'vigência', 'validade',
+  'penalidade', 'sanção', 'impedimento',
+  'microempresa', 'empresa de pequeno porte', 'me/epp',
+  'subcontratação', 'consórcio',
+  'amostra', 'prova de conceito',
+  'inabilitará', 'desclassificação', 'desclassificará',
+  'diligência', 'saneamento',
+]
+
+// Palavras-chave para seções importantes na proposta do concorrente
+const PALAVRAS_CHAVE_CONCORRENTE = [
+  'cnpj', 'razão social', 'nome empresarial',
+  'certidão', 'certificado', 'cnd', 'fgts', 'cndt',
+  'atestado', 'capacidade técnica', 'acervo',
+  'balanço', 'demonstração', 'patrimônio', 'capital social',
+  'proposta', 'preço', 'valor', 'total', 'unitário',
+  'validade', 'vigência', 'data de emissão', 'vencimento',
+  'declaração', 'procuração', 'contrato social',
+  'sicaf', 'registro', 'inscrição',
+  'responsável técnico', 'crea', 'cau', 'crm',
+  'marca', 'modelo', 'fabricante', 'especificação',
+]
+
+/**
+ * Extrai as seções mais relevantes de um texto de documento de licitação.
+ * Divide o texto em blocos (por parágrafos / linhas em branco),
+ * pontua cada bloco pela presença de palavras-chave relevantes e
+ * retorna os blocos mais importantes até o limite de caracteres.
+ */
+const extrairSecoesCriticas = (
+  texto: string,
+  palavrasChave: string[],
+  limite: number
+): string => {
+  // Dividir em blocos por parágrafos (linhas em branco)
+  const blocos = texto
+    .split(/\n\s*\n/)
+    .map(b => b.trim())
+    .filter(b => b.length > 30) // Ignorar blocos muito curtos (cabeçalhos soltos, rodapés)
+
+  if (blocos.length === 0) return texto.slice(0, limite)
+
+  // Pontuar cada bloco
+  const blocosComPontuacao = blocos.map((bloco, indice) => {
+    const textoLower = bloco.toLowerCase()
+    let pontuacao = 0
+
+    for (const palavra of palavrasChave) {
+      if (textoLower.includes(palavra)) {
+        pontuacao += 1
+        // Bônus extra se a palavra aparece no início (provável título de seção)
+        if (textoLower.slice(0, 200).includes(palavra)) {
+          pontuacao += 2
+        }
+      }
+    }
+
+    // Blocos do início do documento recebem um bônus leve (dados gerais do edital/empresa)
+    if (indice < 3) pontuacao += 1
+
+    return { bloco, pontuacao, indice }
+  })
+
+  // Ordenar por pontuação (maior primeiro)
+  const blocosOrdenados = [...blocosComPontuacao].sort((a, b) => b.pontuacao - a.pontuacao)
+
+  // Selecionar blocos até atingir o limite, mantendo a ordem original
+  const blocosSelecionados: { bloco: string; indice: number }[] = []
+  let totalCaracteres = 0
+
+  for (const item of blocosOrdenados) {
+    if (item.pontuacao === 0) continue // Ignorar blocos sem relevância alguma
+    if (totalCaracteres + item.bloco.length > limite) {
+      // Se ainda temos espaço, tentar encaixar um trecho do bloco
+      const espacoRestante = limite - totalCaracteres
+      if (espacoRestante > 200) {
+        blocosSelecionados.push({
+          bloco: item.bloco.slice(0, espacoRestante) + '\n[...]',
+          indice: item.indice,
+        })
+        totalCaracteres += espacoRestante
+      }
+      break
+    }
+    blocosSelecionados.push({ bloco: item.bloco, indice: item.indice })
+    totalCaracteres += item.bloco.length
+  }
+
+  // Se nenhum bloco foi relevante, pegar o início do documento
+  if (blocosSelecionados.length === 0) {
+    return texto.slice(0, limite) + '\n\n[DOCUMENTO TRUNCADO]'
+  }
+
+  // Reordenar pela posição original para manter a coerência do texto
+  blocosSelecionados.sort((a, b) => a.indice - b.indice)
+
+  const resultado = blocosSelecionados.map(b => b.bloco).join('\n\n')
+
+  const omitidos = blocos.length - blocosSelecionados.length
+  if (omitidos > 0) {
+    return resultado + `\n\n[${omitidos} seções omitidas por limite de contexto — apenas seções relevantes para habilitação e conformidade foram mantidas]`
+  }
+
+  return resultado
 }
 
 const extrairTextoPdf = async (buffer: Buffer): Promise<{ text: string; numpages: number }> => {
@@ -107,7 +231,8 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
       editalPaginas = editalPdf.numpages
       concorrenteTexto = concorrentePdf.text
       concorrentePaginas = concorrentePdf.numpages
-    } catch {
+    } catch (error) {
+      console.error('Erro detalhado da extração de PDF:', error)
       return NextResponse.json(
         {
           erro: 'Não foi possível extrair o texto dos PDFs. Verifique se os arquivos possuem texto selecionável (não são imagens escaneadas sem OCR).',
@@ -134,16 +259,16 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
       )
     }
 
-    // Truncar se necessário para não exceder o contexto
-    const editalTruncado = truncarTexto(editalTexto, LIMITE_CARACTERES)
-    const concorrenteTruncado = truncarTexto(concorrenteTexto, LIMITE_CARACTERES)
+    // Extrair apenas as seções mais relevantes dos documentos
+    const editalFiltrado = extrairSecoesCriticas(editalTexto, PALAVRAS_CHAVE_EDITAL, LIMITE_POR_DOCUMENTO)
+    const concorrenteFiltrado = extrairSecoesCriticas(concorrenteTexto, PALAVRAS_CHAVE_CONCORRENTE, LIMITE_POR_DOCUMENTO)
 
     const userMessage = [
-      `=== DOCUMENTO 1: EDITAL (${editalPaginas} páginas) ===`,
-      editalTruncado,
+      `=== DOCUMENTO 1: EDITAL (${editalPaginas} páginas — seções relevantes extraídas) ===`,
+      editalFiltrado,
       '',
-      `=== DOCUMENTO 2: PROPOSTA DO CONCORRENTE (${concorrentePaginas} páginas) ===`,
-      concorrenteTruncado,
+      `=== DOCUMENTO 2: PROPOSTA DO CONCORRENTE (${concorrentePaginas} páginas — seções relevantes extraídas) ===`,
+      concorrenteFiltrado,
       '',
       'Analise os documentos acima e retorne APENAS o JSON com as não conformidades encontradas.',
     ].join('\n')
@@ -153,7 +278,7 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
     const chatCompletion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       response_format: { type: 'json_object' },
-      max_tokens: 4096,
+      max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
