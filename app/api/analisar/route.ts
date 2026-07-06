@@ -1,17 +1,8 @@
 // app/api/analisar/route.ts
 
-import path from 'path'
-import { pathToFileURL } from 'url'
 import Groq from 'groq-sdk'
 import { NextRequest, NextResponse } from 'next/server'
-import { PDFParse } from 'pdf-parse'
 import { ResultadoAnalise } from '@/types/analise-tipos'
-
-// Configurar o worker do PDF.js para funcionar corretamente no ambiente Next.js (Turbopack/Webpack)
-const workerPath = pathToFileURL(
-  path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
-).toString()
-PDFParse.setWorker(workerPath)
 
 const SYSTEM_PROMPT = `Você é um especialista em licitações públicas brasileiras com profundo conhecimento da Lei nº 14.133/2021 (Nova Lei de Licitações), da Lei nº 8.666/1993, da Lei Complementar nº 123/2006, e da jurisprudência do TCU.
 
@@ -186,58 +177,20 @@ const extrairSecoesCriticas = (
   return resultado
 }
 
-const extrairTextoPdf = async (buffer: Buffer): Promise<{ text: string; numpages: number }> => {
-  const parser = new PDFParse({ data: buffer })
-  const resultado = await parser.getText()
-  const info = await parser.getInfo()
-  await parser.destroy()
-  return {
-    text: resultado.text,
-    numpages: info.total,
-  }
-}
-
 export const POST = async (request: NextRequest): Promise<NextResponse> => {
   try {
     const body = await request.json()
-    const { editalBase64, concorrenteBase64 } = body as {
-      editalBase64?: string
-      concorrenteBase64?: string
+    const { editalTexto, editalPaginas, concorrenteTexto, concorrentePaginas } = body as {
+      editalTexto?: string
+      editalPaginas?: number
+      concorrenteTexto?: string
+      concorrentePaginas?: number
     }
 
-    if (!editalBase64 || !concorrenteBase64) {
+    if (!editalTexto || !concorrenteTexto) {
       return NextResponse.json(
-        { erro: 'É necessário enviar os dois documentos PDF.' },
+        { erro: 'É necessário enviar o texto extraído dos dois documentos PDF.' },
         { status: 400 }
-      )
-    }
-
-    // Converter base64 para Buffer do Node.js
-    const editalBuffer = Buffer.from(editalBase64, 'base64')
-    const concorrenteBuffer = Buffer.from(concorrenteBase64, 'base64')
-
-    // Extrair texto dos PDFs em paralelo
-    let editalTexto: string
-    let concorrenteTexto: string
-    let editalPaginas: number
-    let concorrentePaginas: number
-
-    try {
-      const [editalPdf, concorrentePdf] = await Promise.all([
-        extrairTextoPdf(editalBuffer),
-        extrairTextoPdf(concorrenteBuffer),
-      ])
-      editalTexto = editalPdf.text
-      editalPaginas = editalPdf.numpages
-      concorrenteTexto = concorrentePdf.text
-      concorrentePaginas = concorrentePdf.numpages
-    } catch (error) {
-      console.error('Erro detalhado da extração de PDF:', error)
-      return NextResponse.json(
-        {
-          erro: 'Não foi possível extrair o texto dos PDFs. Verifique se os arquivos possuem texto selecionável (não são imagens escaneadas sem OCR).',
-        },
-        { status: 422 }
       )
     }
 
@@ -264,10 +217,10 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
     const concorrenteFiltrado = extrairSecoesCriticas(concorrenteTexto, PALAVRAS_CHAVE_CONCORRENTE, LIMITE_POR_DOCUMENTO)
 
     const userMessage = [
-      `=== DOCUMENTO 1: EDITAL (${editalPaginas} páginas — seções relevantes extraídas) ===`,
+      `=== DOCUMENTO 1: EDITAL (${editalPaginas ?? '?'} páginas — seções relevantes extraídas) ===`,
       editalFiltrado,
       '',
-      `=== DOCUMENTO 2: PROPOSTA DO CONCORRENTE (${concorrentePaginas} páginas — seções relevantes extraídas) ===`,
+      `=== DOCUMENTO 2: PROPOSTA DO CONCORRENTE (${concorrentePaginas ?? '?'} páginas — seções relevantes extraídas) ===`,
       concorrenteFiltrado,
       '',
       'Analise os documentos acima e retorne APENAS o JSON com as não conformidades encontradas.',
