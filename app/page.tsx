@@ -2,11 +2,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Scan,
   AlertTriangle,
   CheckCircle,
+  Clock,
   FileSearch,
+  LogOut,
   MessageSquare,
   RefreshCw,
   ShieldAlert,
@@ -17,6 +20,7 @@ import { TextoCopiavel } from '@/components/texto-copiavel'
 import { RelatorioDownload } from '@/components/relatorio-download'
 import { ResultadoAnalise } from '@/types/analise-tipos'
 import { extrairTextoPdfCliente } from '@/lib/extrair-texto-pdf'
+import { authClient, useSession } from '@/lib/auth-client'
 
 type Estado = 'inicial' | 'carregando' | 'resultado' | 'erro'
 
@@ -31,6 +35,8 @@ const MENSAGENS_CARREGAMENTO = [
 ]
 
 export default function Home() {
+  const router = useRouter()
+  const { data: sessao } = useSession()
   const [edital, setEdital] = useState<File | null>(null)
   const [concorrente, setConcorrente] = useState<File | null>(null)
   const [estado, setEstado] = useState<Estado>('inicial')
@@ -92,6 +98,12 @@ export default function Home() {
     }
   }
 
+  const sair = async () => {
+    await authClient.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
   const reiniciar = () => {
     setEdital(null)
     setConcorrente(null)
@@ -104,21 +116,43 @@ export default function Home() {
   const totalMaterial = resultado?.nao_conformidades.filter((i) => i.gravidade === 'material').length ?? 0
   const totalSanavel = resultado?.nao_conformidades.filter((i) => i.gravidade === 'sanável').length ?? 0
 
+  const trialExpiraEm = sessao?.user.trialExpiresAt ? new Date(sessao.user.trialExpiresAt) : null
+  const trialExpirado = trialExpiraEm !== null && trialExpiraEm.getTime() < Date.now()
+  const diasRestantes = trialExpiraEm
+    ? Math.max(0, Math.ceil((trialExpiraEm.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null
+
   return (
     <main className="min-h-screen bg-slate-50 py-10 px-4">
       <div className="max-w-2xl mx-auto">
 
         {/* Cabeçalho */}
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-            <ShieldAlert className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+              <ShieldAlert className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                LicitPro
+              </h1>
+              <p className="text-xs text-slate-400 font-medium">Analisador de Inabilitação</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              LicitPro
-            </h1>
-            <p className="text-xs text-slate-400 font-medium">Analisador de Inabilitação</p>
-          </div>
+
+          {sessao && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-500 hidden sm:inline">{sessao.user.email}</span>
+              <button
+                id="btn-sair"
+                onClick={sair}
+                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Sair
+              </button>
+            </div>
+          )}
         </div>
         <p className="text-sm text-slate-500 mb-8 pl-[52px]">
           Carregue o edital e a proposta do concorrente — o sistema identifica as brechas e gera o recurso pronto para protocolo.
@@ -126,8 +160,39 @@ export default function Home() {
 
         <hr className="border-slate-200 mb-8" />
 
+        {/* Período de teste */}
+        {trialExpirado ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+            <Clock className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-red-700 text-sm">Período de teste encerrado</p>
+              <p className="text-red-600 text-sm mt-1">
+                Seu período de avaliação gratuita terminou. Entre em contato para continuar usando o LicitPro.
+              </p>
+            </div>
+          </div>
+        ) : diasRestantes !== null && diasRestantes <= 3 ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 flex items-center gap-3">
+            <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <p className="text-sm text-amber-700">
+              Seu período de teste termina em{' '}
+              <span className="font-semibold">
+                {diasRestantes} dia{diasRestantes !== 1 ? 's' : ''}
+              </span>
+              .
+            </p>
+          </div>
+        ) : diasRestantes !== null ? (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-6 flex items-center gap-3">
+            <Clock className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            <p className="text-sm text-blue-700">
+              Período de teste — <span className="font-semibold">{diasRestantes} dias restantes</span>
+            </p>
+          </div>
+        ) : null}
+
         {/* Upload */}
-        {estado !== 'resultado' && (
+        {estado !== 'resultado' && !trialExpirado && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
               <UploadCard
