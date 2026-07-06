@@ -16,19 +16,9 @@ import { ResultadoCard } from '@/components/resultado-card'
 import { TextoCopiavel } from '@/components/texto-copiavel'
 import { RelatorioDownload } from '@/components/relatorio-download'
 import { ResultadoAnalise } from '@/types/analise-tipos'
+import { extrairTextoPdfCliente } from '@/lib/extrair-texto-pdf'
 
 type Estado = 'inicial' | 'carregando' | 'resultado' | 'erro'
-
-const arquivoParaBase64 = (arquivo: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const resultado = reader.result as string
-      resolve(resultado.split(',')[1])
-    }
-    reader.onerror = () => reject(new Error('Falha ao ler o arquivo'))
-    reader.readAsDataURL(arquivo)
-  })
 
 const MENSAGENS_CARREGAMENTO = [
   'Lendo o edital...',
@@ -63,15 +53,27 @@ export default function Home() {
     }, 4000)
 
     try {
-      const [editalBase64, concorrenteBase64] = await Promise.all([
-        arquivoParaBase64(edital),
-        arquivoParaBase64(concorrente),
-      ])
+      let editalPdf, concorrentePdf
+      try {
+        ;[editalPdf, concorrentePdf] = await Promise.all([
+          extrairTextoPdfCliente(edital),
+          extrairTextoPdfCliente(concorrente),
+        ])
+      } catch {
+        throw new Error(
+          'Não foi possível ler um dos PDFs. Verifique se o arquivo não está corrompido.'
+        )
+      }
 
       const resposta = await fetch('/api/analisar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ editalBase64, concorrenteBase64 }),
+        body: JSON.stringify({
+          editalTexto: editalPdf.text,
+          editalPaginas: editalPdf.numpages,
+          concorrenteTexto: concorrentePdf.text,
+          concorrentePaginas: concorrentePdf.numpages,
+        }),
       })
 
       const dados = await resposta.json()
