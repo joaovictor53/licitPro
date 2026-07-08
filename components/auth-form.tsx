@@ -84,7 +84,7 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
                     onChange={(e) => setNome(e.target.value)}
                     required
                     autoComplete="name"
-                    className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg placeholder:text-slate-400 transition-colors focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                    className="w-full pl-9 pr-3 py-2.5 text-sm text-slate-900 bg-slate-50 border border-slate-200 rounded-lg placeholder:text-slate-400 transition-colors focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
                   />
                 </div>
               </div>
@@ -104,11 +104,11 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg placeholder:text-slate-400 transition-colors focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                  className="w-full pl-9 pr-3 py-2.5 text-sm text-slate-900 bg-slate-50 border border-slate-200 rounded-lg placeholder:text-slate-400 transition-colors focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
                 />
               </div>
             </div>
-
+            {/* Senha com cor de fonte preta */}
             <div className="flex flex-col gap-1.5">
               <label htmlFor="senha" className="text-xs font-semibold text-slate-500">
                 Senha
@@ -124,7 +124,7 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
                   required
                   minLength={8}
                   autoComplete={ehCadastro ? 'new-password' : 'current-password'}
-                  className="w-full pl-9 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg placeholder:text-slate-400 transition-colors focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                  className="w-full pl-9 pr-10 py-2.5 text-sm text-slate-900 bg-slate-50 border border-slate-200 rounded-lg placeholder:text-slate-400 transition-colors focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
                 />
                 <button
                   type="button"
@@ -157,18 +157,18 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
             </button>
           </form>
 
-          <div className="flex items-center gap-3 my-4">
+          {/* <div className="flex items-center gap-3 my-4">
             <div className="h-px bg-slate-200 flex-1" />
             <span className="text-xs text-slate-400">ou</span>
             <div className="h-px bg-slate-200 flex-1" />
-          </div>
+          </div> */}
 
-          <button
+          {/* <button
             onClick={entrarComGoogle}
             className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer"
           >
             Continuar com Google
-          </button>
+          </button> */}
 
           <p className="text-xs text-slate-400 text-center mt-5">
             {ehCadastro ? (
