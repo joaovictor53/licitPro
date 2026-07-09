@@ -113,11 +113,27 @@ export default async function AdminPage() {
     },
   ]
 
-  const corClasses: Record<string, { bg: string; ring: string; text: string; iconBg: string }> = {
-    blue: { bg: 'bg-blue-50', ring: 'ring-blue-200', text: 'text-blue-600', iconBg: 'bg-blue-100' },
-    emerald: { bg: 'bg-emerald-50', ring: 'ring-emerald-200', text: 'text-emerald-600', iconBg: 'bg-emerald-100' },
-    amber: { bg: 'bg-amber-50', ring: 'ring-amber-200', text: 'text-amber-600', iconBg: 'bg-amber-100' },
-    violet: { bg: 'bg-violet-50', ring: 'ring-violet-200', text: 'text-violet-600', iconBg: 'bg-violet-100' },
+  const corClasses: Record<string, { text: string; iconBg: string; barra: string }> = {
+    blue: {
+      text: 'text-blue-600 dark:text-blue-400',
+      iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+      barra: 'bg-blue-500',
+    },
+    emerald: {
+      text: 'text-emerald-600 dark:text-emerald-400',
+      iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      barra: 'bg-emerald-500',
+    },
+    amber: {
+      text: 'text-amber-600 dark:text-amber-400',
+      iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+      barra: 'bg-amber-500',
+    },
+    violet: {
+      text: 'text-violet-600 dark:text-violet-400',
+      iconBg: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+      barra: 'bg-violet-500',
+    },
   }
 
   return (
@@ -152,21 +168,39 @@ export default async function AdminPage() {
             const cores = corClasses[stat.cor]
             const Icone = stat.icone
             return (
-              <Card key={stat.label} size="sm" className={cn(cores.bg, cores.ring)}>
-                <CardContent>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div
-                      className={`w-7 h-7 ${cores.iconBg} rounded-lg flex items-center justify-center`}
+              <Card
+                key={stat.label}
+                size="sm"
+                className="relative transition-shadow hover:shadow-md"
+              >
+                <div
+                  className={cn(
+                    'absolute inset-x-0 top-0 h-0.5',
+                    cores.barra
+                  )}
+                />
+                <CardContent className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground font-medium truncate">
+                      {stat.label}
+                    </p>
+                    <p
+                      className={cn(
+                        'text-2xl font-bold tabular-nums mt-1',
+                        cores.text
+                      )}
                     >
-                      <Icone className={`w-3.5 h-3.5 ${cores.text}`} />
-                    </div>
+                      {stat.valor}
+                    </p>
                   </div>
-                  <p className={`text-2xl font-bold ${cores.text}`}>
-                    {stat.valor}
-                  </p>
-                  <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                    {stat.label}
-                  </p>
+                  <div
+                    className={cn(
+                      'w-8 h-8 shrink-0 rounded-lg flex items-center justify-center',
+                      cores.iconBg
+                    )}
+                  >
+                    <Icone className="w-4 h-4" />
+                  </div>
                 </CardContent>
               </Card>
             )
