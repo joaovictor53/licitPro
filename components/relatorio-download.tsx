@@ -3,6 +3,7 @@
 
 import { Download } from 'lucide-react'
 import { ResultadoAnalise } from '@/types/analise-tipos'
+import { Button } from '@/components/ui/button'
 
 interface RelatorioDownloadProps {
   resultado: ResultadoAnalise
@@ -98,13 +99,9 @@ export const RelatorioDownload = ({ resultado, nomeEdital }: RelatorioDownloadPr
   }
 
   return (
-    <button
-      id="btn-baixar-relatorio"
-      onClick={baixarRelatorio}
-      className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 active:bg-black text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
-    >
-      <Download className="w-4 h-4" />
+    <Button id="btn-baixar-relatorio" size="lg" onClick={baixarRelatorio} className="w-full">
+      <Download />
       Baixar Relatório Completo (.txt)
-    </button>
+    </Button>
   )
 }

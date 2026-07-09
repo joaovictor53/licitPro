@@ -13,7 +13,10 @@ import {
   MessageSquare,
   RefreshCw,
   ShieldAlert,
+  History,
+  BarChart3,
 } from 'lucide-react'
+import Link from 'next/link'
 import { UploadCard } from '@/components/upload-card'
 import { ResultadoCard } from '@/components/resultado-card'
 import { TextoCopiavel } from '@/components/texto-copiavel'
@@ -21,6 +24,10 @@ import { RelatorioDownload } from '@/components/relatorio-download'
 import { ResultadoAnalise } from '@/types/analise-tipos'
 import { extrairTextoPdfCliente } from '@/lib/extrair-texto-pdf'
 import { authClient, useSession } from '@/lib/auth-client'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Separator } from '@/components/ui/separator'
 
 type Estado = 'inicial' | 'carregando' | 'resultado' | 'erro'
 
@@ -79,6 +86,8 @@ export default function Home() {
           editalPaginas: editalPdf.numpages,
           concorrenteTexto: concorrentePdf.text,
           concorrentePaginas: concorrentePdf.numpages,
+          nomeEdital: edital.name,
+          nomeProposta: concorrente.name,
         }),
       })
 
@@ -123,72 +132,87 @@ export default function Home() {
     : null
 
   return (
-    <main className="min-h-screen bg-slate-50 py-10 px-4">
+    <main className="min-h-screen bg-background py-10 px-4">
       <div className="max-w-2xl mx-auto">
 
         {/* Cabeçalho */}
         <div className="flex items-center justify-between gap-3 mb-1">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-              <ShieldAlert className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-sm">
+              <ShieldAlert className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              <h1 className="text-xl font-bold tracking-tight">
                 LicitPro
               </h1>
-              <p className="text-xs text-slate-400 font-medium">Analisador de Inabilitação</p>
+              <p className="text-xs text-muted-foreground font-medium">Analisador de Inabilitação</p>
             </div>
           </div>
 
           {sessao && (
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500 hidden sm:inline">{sessao.user.email}</span>
-              <button
-                id="btn-sair"
-                onClick={sair}
-                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 transition-colors cursor-pointer"
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="xs"
+                nativeButton={false}
+                render={<Link href="/historico" />}
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <History />
+                Histórico
+              </Button>
+              {sessao.user.role === 'admin' && (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  className="text-primary"
+                  nativeButton={false}
+                  render={<Link href="/admin" />}
+                >
+                  <BarChart3 />
+                  Admin
+                </Button>
+              )}
+              <span className="text-xs text-muted-foreground hidden sm:inline">{sessao.user.email}</span>
+              <Button id="btn-sair" variant="outline" size="xs" onClick={sair}>
+                <LogOut />
                 Sair
-              </button>
+              </Button>
             </div>
           )}
         </div>
-        <p className="text-sm text-slate-500 mb-8 pl-[52px]">
+        <p className="text-sm text-muted-foreground mb-8 pl-[52px]">
           Carregue o edital e a proposta do concorrente — o sistema identifica as brechas e gera o recurso pronto para protocolo.
         </p>
 
-        <hr className="border-slate-200 mb-8" />
+        <Separator className="mb-8" />
 
         {/* Período de teste */}
         {trialExpirado ? (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-            <Clock className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-red-700 text-sm">Período de teste encerrado</p>
-              <p className="text-red-600 text-sm mt-1">
-                Seu período de avaliação gratuita terminou. Entre em contato para continuar usando o LicitPro.
-              </p>
-            </div>
-          </div>
+          <Alert variant="destructive" className="mb-6">
+            <Clock />
+            <AlertTitle>Período de teste encerrado</AlertTitle>
+            <AlertDescription>
+              Seu período de avaliação gratuita terminou. Entre em contato para continuar usando o LicitPro.
+            </AlertDescription>
+          </Alert>
         ) : diasRestantes !== null && diasRestantes <= 3 ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 flex items-center gap-3">
-            <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            <p className="text-sm text-amber-700">
+          <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-700">
+            <Clock className="text-amber-500" />
+            <AlertDescription className="text-amber-700">
               Seu período de teste termina em{' '}
               <span className="font-semibold">
                 {diasRestantes} dia{diasRestantes !== 1 ? 's' : ''}
               </span>
               .
-            </p>
-          </div>
+            </AlertDescription>
+          </Alert>
         ) : diasRestantes !== null ? (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-6 flex items-center gap-3">
-            <Clock className="w-4 h-4 text-blue-500 flex-shrink-0" />
-            <p className="text-sm text-blue-700">
+          <Alert className="mb-6">
+            <Clock className="text-primary" />
+            <AlertDescription>
               Período de teste — <span className="font-semibold">{diasRestantes} dias restantes</span>
-            </p>
-          </div>
+            </AlertDescription>
+          </Alert>
         ) : null}
 
         {/* Upload */}
@@ -209,96 +233,100 @@ export default function Home() {
               />
             </div>
 
-            <button
+            <Button
               id="btn-iniciar-varredura"
+              size="lg"
               onClick={analisar}
               disabled={!podeAnalisar || estado === 'carregando'}
-              className={`
-                w-full py-3 px-4 rounded-xl font-semibold text-sm
-                flex items-center justify-center gap-2 mb-6
-                transition-all duration-150 shadow-sm
-                ${podeAnalisar && estado !== 'carregando'
-                  ? 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white cursor-pointer'
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                }
-              `}
+              className="w-full mt-4 cursor-pointer"
+              variant="outline"
             >
-              <Scan className="w-4 h-4" />
+              <Scan />
               Iniciar varredura
-            </button>
+            </Button>
           </>
         )}
 
         {/* Carregando */}
         {estado === 'carregando' && (
-          <div className="bg-white border border-slate-200 rounded-xl p-10 text-center mb-6 shadow-sm">
-            <div className="w-12 h-12 border-2 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-5" />
-            <p className="font-semibold text-slate-800 mb-1">{msgCarregamento}</p>
-            <p className="text-sm text-slate-400">
-              Isso pode levar de 20 a 60 segundos dependendo do tamanho dos documentos
-            </p>
-          </div>
+          <Card className="mb-6">
+            <CardContent className="py-4 text-center">
+              <div className="w-12 h-12 border-2 border-muted border-t-primary rounded-full animate-spin mx-auto mb-5" />
+              <p className="font-semibold mb-1">{msgCarregamento}</p>
+              <p className="text-sm text-muted-foreground">
+                Isso pode levar de 20 a 60 segundos dependendo do tamanho dos documentos
+              </p>
+            </CardContent>
+          </Card>
         )}
 
         {/* Erro */}
         {estado === 'erro' && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-red-700 text-sm">Erro na análise</p>
-              <p className="text-red-600 text-sm mt-1">{erro}</p>
-              <button
+          <Alert variant="destructive" className="mb-6">
+            <AlertTriangle />
+            <AlertTitle>Erro na análise</AlertTitle>
+            <AlertDescription>
+              <p>{erro}</p>
+              <Button
                 id="btn-tentar-novamente"
+                variant="link"
+                size="xs"
                 onClick={reiniciar}
-                className="mt-3 text-xs text-red-600 underline underline-offset-2 hover:text-red-700 cursor-pointer"
+                className="mt-2 px-0 text-destructive underline"
               >
                 Tentar novamente
-              </button>
-            </div>
-          </div>
+              </Button>
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Resultado */}
         {estado === 'resultado' && resultado && (
           <>
             {/* Resumo */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex gap-3 shadow-sm">
-              <FileSearch className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">
-                  Resumo da análise
-                </p>
-                <p className="text-sm text-slate-700 leading-relaxed">{resultado.resumo}</p>
-              </div>
-            </div>
+            <Card size="sm" className="mb-4">
+              <CardContent className="flex gap-3">
+                <FileSearch className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1">
+                    Resumo da análise
+                  </p>
+                  <p className="text-sm leading-relaxed">{resultado.resumo}</p>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Contadores */}
             {resultado.total_irregularidades > 0 && (
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-bold text-red-600">{totalMaterial}</p>
-                  <p className="text-xs text-red-500 font-medium mt-0.5">Material(is) — insanável(is)</p>
-                </div>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-bold text-amber-600">{totalSanavel}</p>
-                  <p className="text-xs text-amber-500 font-medium mt-0.5">Sanável(is)</p>
-                </div>
+                <Card size="sm" className="bg-red-50 ring-red-200">
+                  <CardContent className="text-center">
+                    <p className="text-2xl font-bold text-red-600">{totalMaterial}</p>
+                    <p className="text-xs text-red-500 font-medium mt-0.5">Material(is) — insanável(is)</p>
+                  </CardContent>
+                </Card>
+                <Card size="sm" className="bg-amber-50 ring-amber-200">
+                  <CardContent className="text-center">
+                    <p className="text-2xl font-bold text-amber-600">{totalSanavel}</p>
+                    <p className="text-xs text-amber-500 font-medium mt-0.5">Sanável(is)</p>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
             {/* Não conformidades */}
             {resultado.nao_conformidades.length === 0 ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4 flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-emerald-500" />
-                <p className="text-sm text-emerald-700">
+              <Alert className="mb-4 border-emerald-200 bg-emerald-50 text-emerald-700">
+                <CheckCircle className="text-emerald-500" />
+                <AlertDescription className="text-emerald-700">
                   Nenhuma irregularidade encontrada na proposta do concorrente.
-                </p>
-              </div>
+                </AlertDescription>
+              </Alert>
             ) : (
               <div className="mb-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <AlertTriangle className="w-4 h-4 text-red-500" />
-                  <span className="text-sm font-semibold text-slate-700">
+                  <AlertTriangle className="w-4 h-4 text-destructive" />
+                  <span className="text-sm font-semibold">
                     {resultado.total_irregularidades} irregularidade
                     {resultado.total_irregularidades !== 1 ? 's' : ''} encontrada
                     {resultado.total_irregularidades !== 1 ? 's' : ''}
@@ -316,24 +344,20 @@ export default function Home() {
               <TextoCopiavel
                 titulo="Recurso administrativo"
                 texto={resultado.recurso_administrativo}
-                icone={<FileSearch className="w-4 h-4 text-blue-500" />}
+                icone={<FileSearch className="w-4 h-4 text-primary" />}
               />
               <TextoCopiavel
                 titulo="Mensagem ao pregoeiro"
                 texto={resultado.mensagem_pregoeiro}
-                icone={<MessageSquare className="w-4 h-4 text-blue-500" />}
+                icone={<MessageSquare className="w-4 h-4 text-primary" />}
               />
             </div>
 
             {/* Botão nova análise */}
-            <button
-              id="btn-nova-analise"
-              onClick={reiniciar}
-              className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 active:bg-slate-100 flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
-            >
-              <RefreshCw className="w-4 h-4" />
+            <Button id="btn-nova-analise" variant="outline" onClick={reiniciar} className="w-full">
+              <RefreshCw />
               Nova análise
-            </button>
+            </Button>
           </>
         )}
 

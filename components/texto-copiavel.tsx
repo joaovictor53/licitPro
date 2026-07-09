@@ -3,6 +3,8 @@
 
 import { useState } from 'react'
 import { Copy, Check } from 'lucide-react'
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 interface TextoCopiavelProps {
   titulo: string
@@ -20,36 +22,36 @@ export const TextoCopiavel = ({ titulo, texto, icone }: TextoCopiavelProps) => {
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
           {icone}
           {titulo}
-        </div>
-        <button
-          onClick={copiar}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer"
-          aria-label={`Copiar ${titulo}`}
-        >
-          {copiado ? (
-            <>
-              <Check className="w-3 h-3 text-emerald-500" />
-              <span className="text-emerald-600 font-medium">Copiado!</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3 h-3 text-slate-500" />
-              <span className="text-slate-500">Copiar</span>
-            </>
-          )}
-        </button>
-      </div>
+        </CardTitle>
+        <CardAction>
+          <Button variant="outline" size="xs" onClick={copiar} aria-label={`Copiar ${titulo}`}>
+            {copiado ? (
+              <>
+                <Check className="text-emerald-500" />
+                <span className="text-emerald-600 font-medium">Copiado!</span>
+              </>
+            ) : (
+              <>
+                <Copy />
+                Copiar
+              </>
+            )}
+          </Button>
+        </CardAction>
+      </CardHeader>
 
-      <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-72 overflow-y-auto">
-        <pre className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap font-sans">
-          {texto}
-        </pre>
-      </div>
-    </div>
+      <CardContent>
+        <div className="bg-muted/50 border rounded-lg p-3 max-h-72 overflow-y-auto">
+          <pre className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap font-sans">
+            {texto}
+          </pre>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

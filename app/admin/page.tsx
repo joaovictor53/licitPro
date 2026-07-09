@@ -1,0 +1,325 @@
+// app/admin/page.tsx
+
+import Link from 'next/link'
+import { eq, desc, count, countDistinct, gte, sql } from 'drizzle-orm'
+import {
+  ShieldAlert,
+  ArrowLeft,
+  BarChart3,
+  Users,
+  CalendarDays,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle,
+} from 'lucide-react'
+import { exigirAdmin } from '@/lib/sessao'
+import { db } from '@/app/src'
+import { analise, user } from '@/app/src/db/schema'
+import { cn } from '@/lib/utils'
+import { buttonVariants } from '@/components/ui/button'
+import { badgeVariants } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+
+export default async function AdminPage() {
+  const session = await exigirAdmin()
+
+  const agora = new Date()
+  const seteDiasAtras = new Date(agora.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const trintaDiasAtras = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+  // Estatísticas gerais (colunas planas, nunca jsonb)
+  const [[totalGeral], [totalUsuarios], [ultimos7], [ultimos30]] =
+    await Promise.all([
+      db.select({ total: count() }).from(analise),
+      db.select({ total: countDistinct(analise.userId) }).from(analise),
+      db
+        .select({ total: count() })
+        .from(analise)
+        .where(gte(analise.createdAt, seteDiasAtras)),
+      db
+        .select({ total: count() })
+        .from(analise)
+        .where(gte(analise.createdAt, trintaDiasAtras)),
+    ])
+
+  // Análises por usuário
+  const porUsuario = await db
+    .select({
+      userId: user.id,
+      nome: user.name,
+      email: user.email,
+      totalAnalises: count(analise.id),
+      ultimaAnalise: sql<string>`max(${analise.createdAt})`.as(
+        'ultima_analise'
+      ),
+    })
+    .from(analise)
+    .innerJoin(user, eq(analise.userId, user.id))
+    .groupBy(user.id, user.name, user.email)
+    .orderBy(sql`count(${analise.id}) desc`)
+
+  // Últimas 50 análises
+  const ultimasAnalises = await db
+    .select({
+      id: analise.id,
+      nomeEdital: analise.nomeEdital,
+      nomeProposta: analise.nomeProposta,
+      resumo: analise.resumo,
+      totalIrregularidades: analise.totalIrregularidades,
+      totalMaterial: analise.totalMaterial,
+      totalSanavel: analise.totalSanavel,
+      createdAt: analise.createdAt,
+      userName: user.name,
+      userEmail: user.email,
+    })
+    .from(analise)
+    .innerJoin(user, eq(analise.userId, user.id))
+    .orderBy(desc(analise.createdAt))
+    .limit(50)
+
+  const stats = [
+    {
+      label: 'Total de análises',
+      valor: totalGeral.total,
+      icone: BarChart3,
+      cor: 'blue',
+    },
+    {
+      label: 'Usuários ativos',
+      valor: totalUsuarios.total,
+      icone: Users,
+      cor: 'emerald',
+    },
+    {
+      label: 'Últimos 7 dias',
+      valor: ultimos7.total,
+      icone: TrendingUp,
+      cor: 'amber',
+    },
+    {
+      label: 'Últimos 30 dias',
+      valor: ultimos30.total,
+      icone: CalendarDays,
+      cor: 'violet',
+    },
+  ]
+
+  const corClasses: Record<string, { bg: string; ring: string; text: string; iconBg: string }> = {
+    blue: { bg: 'bg-blue-50', ring: 'ring-blue-200', text: 'text-blue-600', iconBg: 'bg-blue-100' },
+    emerald: { bg: 'bg-emerald-50', ring: 'ring-emerald-200', text: 'text-emerald-600', iconBg: 'bg-emerald-100' },
+    amber: { bg: 'bg-amber-50', ring: 'ring-amber-200', text: 'text-amber-600', iconBg: 'bg-amber-100' },
+    violet: { bg: 'bg-violet-50', ring: 'ring-violet-200', text: 'text-violet-600', iconBg: 'bg-violet-100' },
+  }
+
+  return (
+    <main className="min-h-screen bg-background py-10 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Cabeçalho */}
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-sm">
+              <ShieldAlert className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">
+                LicitPro Admin
+              </h1>
+              <p className="text-xs text-muted-foreground font-medium">
+                Painel administrativo
+              </p>
+            </div>
+          </div>
+          <Link href="/" className={buttonVariants({ variant: 'outline', size: 'xs' })}>
+            <ArrowLeft />
+            Voltar
+          </Link>
+        </div>
+
+        <Separator className="my-6" />
+
+        {/* Cards de estatísticas */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+          {stats.map((stat) => {
+            const cores = corClasses[stat.cor]
+            const Icone = stat.icone
+            return (
+              <Card key={stat.label} size="sm" className={cn(cores.bg, cores.ring)}>
+                <CardContent>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div
+                      className={`w-7 h-7 ${cores.iconBg} rounded-lg flex items-center justify-center`}
+                    >
+                      <Icone className={`w-3.5 h-3.5 ${cores.text}`} />
+                    </div>
+                  </div>
+                  <p className={`text-2xl font-bold ${cores.text}`}>
+                    {stat.valor}
+                  </p>
+                  <p className="text-xs text-muted-foreground font-medium mt-0.5">
+                    {stat.label}
+                  </p>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+
+        {/* Tabela: Análises por Usuário */}
+        <Card size="sm" className="mb-8">
+          <CardHeader className="border-b [.border-b]:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Users className="w-4 h-4 text-primary" />
+              Análises por Usuário
+            </CardTitle>
+          </CardHeader>
+          {porUsuario.length === 0 ? (
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              Nenhuma análise registrada ainda.
+            </CardContent>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Nome</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Email</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">Total</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Última análise</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {porUsuario.map((u) => (
+                  <TableRow key={u.userId}>
+                    <TableCell className="font-medium">{u.nome}</TableCell>
+                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                    <TableCell className="text-center">
+                      <span className={badgeVariants({ variant: 'secondary' })}>
+                        {u.totalAnalises}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {u.ultimaAnalise
+                        ? new Date(u.ultimaAnalise).toLocaleDateString(
+                            'pt-BR',
+                            {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }
+                          )
+                        : '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+
+        {/* Tabela: Histórico Completo */}
+        <Card size="sm">
+          <CardHeader className="border-b [.border-b]:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <BarChart3 className="w-4 h-4 text-primary" />
+              Histórico Completo
+              <span className="text-xs text-muted-foreground font-normal ml-auto">
+                Últimas 50 análises
+              </span>
+            </CardTitle>
+          </CardHeader>
+          {ultimasAnalises.length === 0 ? (
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              Nenhuma análise registrada ainda.
+            </CardContent>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Data</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Usuário</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Edital</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Proposta</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">Irregularidades</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ultimasAnalises.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {a.createdAt
+                        ? new Date(a.createdAt).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium text-xs">{a.userName}</p>
+                      <p className="text-muted-foreground text-xs">{a.userEmail}</p>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs max-w-[150px] truncate">
+                      {a.nomeEdital}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs max-w-[150px] truncate">
+                      {a.nomeProposta}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {a.totalIrregularidades > 0 ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <span className={badgeVariants({ variant: 'destructive' })}>
+                            <AlertTriangle />
+                            {a.totalMaterial}
+                          </span>
+                          <span
+                            className={cn(
+                              badgeVariants({ variant: 'secondary' }),
+                              'bg-amber-100 text-amber-700'
+                            )}
+                          >
+                            {a.totalSanavel}
+                          </span>
+                        </div>
+                      ) : (
+                        <span
+                          className={cn(
+                            badgeVariants({ variant: 'secondary' }),
+                            'bg-emerald-100 text-emerald-700'
+                          )}
+                        >
+                          <CheckCircle />
+                          OK
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Link
+                        href={`/historico/${a.id}`}
+                        className={buttonVariants({ variant: 'link', size: 'xs' })}
+                      >
+                        Ver
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+      </div>
+    </main>
+  )
+}

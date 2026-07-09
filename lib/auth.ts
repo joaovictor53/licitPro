@@ -20,6 +20,12 @@ export const auth = betterAuth({
                 // Impede que o cliente defina/altere este campo via API
                 input: false,
             },
+            role: {
+                type: 'string',
+                required: false,
+                input: false,
+                defaultValue: 'user',
+            },
         },
     },
     databaseHooks: {

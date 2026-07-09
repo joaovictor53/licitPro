@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, uuid, integer, jsonb, index } from 'drizzle-orm/pg-core';
+import type { ResultadoAnalise } from '@/types/analise-tipos';
 
 export const user = pgTable('user', {
     id: text('id').primaryKey(),
@@ -6,6 +7,7 @@ export const user = pgTable('user', {
     email: text('email').notNull().unique(),
     emailVerified: boolean('email_verified').notNull().default(false),
     image: text('image'),
+    role: text('role').notNull().default('user'),
     trialExpiresAt: timestamp('trial_expires_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -50,3 +52,21 @@ export const verification = pgTable('verification', {
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
 });
+
+export const analise = pgTable('analise', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+        .notNull()
+        .references(() => user.id, { onDelete: 'cascade' }),
+    nomeEdital: text('nome_edital').notNull(),
+    nomeProposta: text('nome_proposta').notNull(),
+    resumo: text('resumo').notNull(),
+    totalIrregularidades: integer('total_irregularidades').notNull(),
+    totalMaterial: integer('total_material').notNull(),
+    totalSanavel: integer('total_sanavel').notNull(),
+    resultado: jsonb('resultado').$type<ResultadoAnalise>().notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+    index('analise_user_id_idx').on(t.userId),
+    index('analise_created_at_idx').on(t.createdAt),
+]);

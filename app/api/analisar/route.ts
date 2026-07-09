@@ -4,6 +4,8 @@ import Groq from 'groq-sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
+import { db } from '@/app/src'
+import { analise } from '@/app/src/db/schema'
 import { ResultadoAnalise } from '@/types/analise-tipos'
 
 const SYSTEM_PROMPT = `Você é um especialista em licitações públicas brasileiras com profundo conhecimento da Lei nº 14.133/2021 (Nova Lei de Licitações), da Lei nº 8.666/1993, da Lei Complementar nº 123/2006, e da jurisprudência do TCU.
@@ -196,11 +198,13 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
     }
 
     const body = await request.json()
-    const { editalTexto, editalPaginas, concorrenteTexto, concorrentePaginas } = body as {
+    const { editalTexto, editalPaginas, concorrenteTexto, concorrentePaginas, nomeEdital, nomeProposta } = body as {
       editalTexto?: string
       editalPaginas?: number
       concorrenteTexto?: string
       concorrentePaginas?: number
+      nomeEdital?: string
+      nomeProposta?: string
     }
 
     if (!editalTexto || !concorrenteTexto) {
@@ -257,7 +261,33 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
     const rawText = chatCompletion.choices[0]?.message?.content ?? ''
     const resultado: ResultadoAnalise = JSON.parse(rawText)
 
-    return NextResponse.json(resultado)
+    // Persistir análise no banco (falha não quebra a resposta)
+    let analiseId: string | null = null
+    try {
+      const totalMaterial = resultado.nao_conformidades.filter(
+        (nc) => nc.gravidade === 'material'
+      ).length
+      const totalSanavel = resultado.nao_conformidades.filter(
+        (nc) => nc.gravidade === 'sanável'
+      ).length
+
+      const [registro] = await db.insert(analise).values({
+        userId: session.user.id,
+        nomeEdital: nomeEdital || 'Edital sem nome',
+        nomeProposta: nomeProposta || 'Proposta sem nome',
+        resumo: resultado.resumo,
+        totalIrregularidades: resultado.total_irregularidades,
+        totalMaterial,
+        totalSanavel,
+        resultado,
+      }).returning({ id: analise.id })
+
+      analiseId = registro?.id ?? null
+    } catch (errSalvar) {
+      console.error('Erro ao salvar análise no banco:', errSalvar)
+    }
+
+    return NextResponse.json({ ...resultado, analiseId })
   } catch (error) {
     console.error('Erro na análise:', error)
 
