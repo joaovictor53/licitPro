@@ -15,6 +15,8 @@ import {
 import { exigirAdmin } from '@/lib/sessao'
 import { db } from '@/app/src'
 import { analise, user } from '@/app/src/db/schema'
+import { PLANOS, PLANO_PADRAO, ehPlanoValido } from '@/lib/planos'
+import { PlanoSelect } from '@/components/plano-select'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 import { badgeVariants } from '@/components/ui/badge'
@@ -50,6 +52,28 @@ export default async function AdminPage() {
         .from(analise)
         .where(gte(analise.createdAt, trintaDiasAtras)),
     ])
+
+  // Usuários com uso do mês corrente (para gestão de planos)
+  const inicioDoMes = new Date(agora.getFullYear(), agora.getMonth(), 1)
+  const [usuarios, usoMes] = await Promise.all([
+    db
+      .select({
+        id: user.id,
+        nome: user.name,
+        email: user.email,
+        plano: user.plano,
+        role: user.role,
+        criadoEm: user.createdAt,
+      })
+      .from(user)
+      .orderBy(desc(user.createdAt)),
+    db
+      .select({ userId: analise.userId, total: count() })
+      .from(analise)
+      .where(gte(analise.createdAt, inicioDoMes))
+      .groupBy(analise.userId),
+  ])
+  const usoPorUsuario = new Map(usoMes.map((u) => [u.userId, u.total]))
 
   // Análises por usuário
   const porUsuario = await db
@@ -206,6 +230,80 @@ export default async function AdminPage() {
             )
           })}
         </div>
+
+        {/* Tabela: Usuários e Planos */}
+        <Card size="sm" className="mb-8">
+          <CardHeader className="border-b [.border-b]:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Users className="w-4 h-4 text-primary" />
+              Usuários e Planos
+            </CardTitle>
+          </CardHeader>
+          {usuarios.length === 0 ? (
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              Nenhum usuário cadastrado ainda.
+            </CardContent>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Nome</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Email</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Plano</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-center">Uso no mês</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Cadastro</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {usuarios.map((u) => {
+                  const planoId = ehPlanoValido(u.plano) ? u.plano : PLANO_PADRAO
+                  const limite = PLANOS[planoId].limiteAnalises
+                  const usadas = usoPorUsuario.get(u.id) ?? 0
+                  return (
+                    <TableRow key={u.id}>
+                      <TableCell className="font-medium">{u.nome}</TableCell>
+                      <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                      <TableCell>
+                        {u.role === 'admin' ? (
+                          <span className={badgeVariants({ variant: 'default' })}>
+                            Admin
+                          </span>
+                        ) : (
+                          <PlanoSelect userId={u.id} plano={planoId} />
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {u.role === 'admin' ? (
+                          <span className={badgeVariants({ variant: 'secondary' })}>
+                            {usadas} / ∞
+                          </span>
+                        ) : (
+                          <span
+                            className={cn(
+                              badgeVariants({ variant: 'secondary' }),
+                              usadas >= limite && 'bg-red-100 text-red-700'
+                            )}
+                          >
+                            {usadas} / {limite}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">
+                        {u.criadoEm
+                          ? new Date(u.criadoEm).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
 
         {/* Tabela: Análises por Usuário */}
         <Card size="sm" className="mb-8">

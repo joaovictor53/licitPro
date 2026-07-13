@@ -6,6 +6,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/app/src'
 import { analise } from '@/app/src/db/schema'
+import { obterStatusPlano } from '@/lib/planos-server'
 import { ResultadoAnalise } from '@/types/analise-tipos'
 
 const SYSTEM_PROMPT = `Você é um especialista em licitações públicas brasileiras com profundo conhecimento da Lei nº 14.133/2021 (Nova Lei de Licitações), da Lei nº 8.666/1993, da Lei Complementar nº 123/2006, e da jurisprudência do TCU.
@@ -189,12 +190,21 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
       return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
     }
 
-    const trialExpiresAt = session.user.trialExpiresAt
-    if (trialExpiresAt && new Date(trialExpiresAt) < new Date()) {
-      return NextResponse.json(
-        { erro: 'Seu período de teste expirou. Entre em contato para continuar usando o LicitPro.' },
-        { status: 403 }
-      )
+    const statusPlano = await obterStatusPlano(
+      session.user.id,
+      session.user.plano,
+      session.user.trialExpiresAt,
+      session.user.role
+    )
+
+    if (!statusPlano.permitido) {
+      const erro =
+        statusPlano.motivo === 'trial_expirado'
+          ? 'Seu período de teste expirou. Assine um plano para continuar usando o LicitPro.'
+          : statusPlano.plano === 'gratis'
+            ? `Você já utilizou a análise do plano ${statusPlano.nomePlano}. Assine um plano para continuar.`
+            : `Você atingiu o limite de ${statusPlano.limite} análises mensais do plano ${statusPlano.nomePlano}. Faça upgrade para continuar.`
+      return NextResponse.json({ erro }, { status: 403 })
     }
 
     const body = await request.json()

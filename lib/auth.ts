@@ -26,6 +26,12 @@ export const auth = betterAuth({
                 input: false,
                 defaultValue: 'user',
             },
+            plano: {
+                type: 'string',
+                required: false,
+                input: false,
+                defaultValue: 'gratis',
+            },
         },
     },
     databaseHooks: {

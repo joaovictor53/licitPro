@@ -1,7 +1,7 @@
 // app/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Scan,
@@ -15,7 +15,9 @@ import {
   ShieldAlert,
   History,
   BarChart3,
+  Gem,
 } from 'lucide-react'
+import type { StatusPlano } from '@/lib/planos'
 import Link from 'next/link'
 import { UploadCard } from '@/components/upload-card'
 import { ResultadoCard } from '@/components/resultado-card'
@@ -50,6 +52,20 @@ export default function Home() {
   const [resultado, setResultado] = useState<ResultadoAnalise | null>(null)
   const [erro, setErro] = useState<string>('')
   const [msgCarregamento, setMsgCarregamento] = useState(MENSAGENS_CARREGAMENTO[0])
+  const [statusPlano, setStatusPlano] = useState<StatusPlano | null>(null)
+
+  const carregarPlano = useCallback(async () => {
+    try {
+      const resposta = await fetch('/api/plano')
+      if (resposta.ok) setStatusPlano(await resposta.json())
+    } catch {
+      // Sem status do plano, a UI apenas não mostra o contador — a API de análise ainda valida
+    }
+  }, [])
+
+  useEffect(() => {
+    if (sessao) carregarPlano()
+  }, [sessao, carregarPlano])
 
   const podeAnalisar = edital !== null && concorrente !== null
 
@@ -99,6 +115,7 @@ export default function Home() {
 
       setResultado(dados)
       setEstado('resultado')
+      carregarPlano()
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro desconhecido.')
       setEstado('erro')
@@ -125,8 +142,8 @@ export default function Home() {
   const totalMaterial = resultado?.nao_conformidades.filter((i) => i.gravidade === 'material').length ?? 0
   const totalSanavel = resultado?.nao_conformidades.filter((i) => i.gravidade === 'sanável').length ?? 0
 
-  const trialExpiraEm = sessao?.user.trialExpiresAt ? new Date(sessao.user.trialExpiresAt) : null
-  const trialExpirado = trialExpiraEm !== null && trialExpiraEm.getTime() < Date.now()
+  const bloqueado = statusPlano !== null && !statusPlano.permitido
+  const trialExpiraEm = statusPlano?.trialExpiresAt ? new Date(statusPlano.trialExpiresAt) : null
   const diasRestantes = trialExpiraEm
     ? Math.max(0, Math.ceil((trialExpiraEm.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
     : null
@@ -160,6 +177,15 @@ export default function Home() {
                 <History />
                 Histórico
               </Button>
+              <Button
+                variant="outline"
+                size="xs"
+                nativeButton={false}
+                render={<Link href="/planos" />}
+              >
+                <Gem />
+                Planos
+              </Button>
               {sessao.user.role === 'admin' && (
                 <Button
                   variant="outline"
@@ -186,37 +212,71 @@ export default function Home() {
 
         <Separator className="mb-8" />
 
-        {/* Período de teste */}
-        {trialExpirado ? (
+        {/* Status do plano */}
+        {bloqueado && statusPlano ? (
           <Alert variant="destructive" className="mb-6">
             <Clock />
-            <AlertTitle>Período de teste encerrado</AlertTitle>
+            <AlertTitle>
+              {statusPlano.motivo === 'trial_expirado'
+                ? 'Período de teste encerrado'
+                : 'Limite de análises atingido'}
+            </AlertTitle>
             <AlertDescription>
-              Seu período de avaliação gratuita terminou. Entre em contato para continuar usando o LicitPro.
+              <p>
+                {statusPlano.motivo === 'trial_expirado'
+                  ? 'Seu período de avaliação gratuita terminou. Assine um plano para continuar usando o LicitPro.'
+                  : statusPlano.plano === 'gratis'
+                    ? 'Você já utilizou a análise gratuita. Assine um plano para continuar usando o LicitPro.'
+                    : `Você utilizou as ${statusPlano.limite} análises mensais do plano ${statusPlano.nomePlano}. Faça upgrade para continuar.`}
+              </p>
+              <Button
+                variant="link"
+                size="xs"
+                nativeButton={false}
+                render={<Link href="/planos" />}
+                className="mt-2 px-0 text-destructive underline"
+              >
+                Ver planos
+              </Button>
             </AlertDescription>
           </Alert>
-        ) : diasRestantes !== null && diasRestantes <= 3 ? (
-          <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-700">
-            <Clock className="text-amber-500" />
-            <AlertDescription className="text-amber-700">
-              Seu período de teste termina em{' '}
-              <span className="font-semibold">
-                {diasRestantes} dia{diasRestantes !== 1 ? 's' : ''}
-              </span>
-              .
-            </AlertDescription>
-          </Alert>
-        ) : diasRestantes !== null ? (
+        ) : statusPlano?.ilimitado ? (
           <Alert className="mb-6">
-            <Clock className="text-primary" />
+            <Gem className="text-primary" />
             <AlertDescription>
-              Período de teste — <span className="font-semibold">{diasRestantes} dias restantes</span>
+              <span className="font-semibold">Administrador</span> — análises ilimitadas
+            </AlertDescription>
+          </Alert>
+        ) : statusPlano ? (
+          <Alert className="mb-6">
+            <Gem className="text-primary" />
+            <AlertDescription className="flex flex-wrap items-center gap-x-2">
+              <span>
+                Plano <span className="font-semibold">{statusPlano.nomePlano}</span> —{' '}
+                <span className="font-semibold">
+                  {statusPlano.restantes} de {statusPlano.limite}
+                </span>{' '}
+                análise{statusPlano.limite !== 1 ? 's' : ''}{' '}
+                {statusPlano.plano === 'gratis' ? 'disponível' : 'restantes no mês'}
+                {statusPlano.plano === 'gratis' && diasRestantes !== null && (
+                  <>
+                    {' '}
+                    · teste termina em{' '}
+                    <span className="font-semibold">
+                      {diasRestantes} dia{diasRestantes !== 1 ? 's' : ''}
+                    </span>
+                  </>
+                )}
+              </span>
+              <Link href="/planos" className="underline text-primary font-medium">
+                Ver planos
+              </Link>
             </AlertDescription>
           </Alert>
         ) : null}
 
         {/* Upload */}
-        {estado !== 'resultado' && !trialExpirado && (
+        {estado !== 'resultado' && !bloqueado && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
               <UploadCard
