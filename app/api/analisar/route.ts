@@ -200,7 +200,7 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
     if (!statusPlano.permitido) {
       const erro =
         statusPlano.motivo === 'trial_expirado'
-          ? 'Seu período de teste expirou. Assine um plano para continuar usando o LicitPro.'
+          ? 'Seu período de teste expirou. Assine um plano para continuar usando o LicitPro Analyzer.'
           : statusPlano.plano === 'gratis'
             ? `Você já utilizou a análise do plano ${statusPlano.nomePlano}. Assine um plano para continuar.`
             : `Você atingiu o limite de ${statusPlano.limite} análises mensais do plano ${statusPlano.nomePlano}. Faça upgrade para continuar.`

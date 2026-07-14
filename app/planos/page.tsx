@@ -132,7 +132,7 @@ export default async function PlanosPage() {
                   ) : id !== 'gratis' ? (
                     <a
                       href={`mailto:suporte@arquidiocesedemanaus.org.br?subject=${encodeURIComponent(
-                        `Assinatura LicitPro — Plano ${plano.nome}`
+                        `Assinatura LicitPro Analyzer — Plano ${plano.nome}`
                       )}`}
                       className={buttonVariants({
                         variant: destaque ? 'default' : 'outline',

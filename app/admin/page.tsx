@@ -171,7 +171,7 @@ export default async function AdminPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight">
-                LicitPro Admin
+                LicitPro Analyzer Admin
               </h1>
               <p className="text-xs text-muted-foreground font-medium">
                 Painel administrativo
@@ -291,10 +291,10 @@ export default async function AdminPage() {
                       <TableCell className="text-muted-foreground text-xs">
                         {u.criadoEm
                           ? new Date(u.criadoEm).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                            })
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                          })
                           : '—'}
                       </TableCell>
                     </TableRow>
@@ -340,15 +340,15 @@ export default async function AdminPage() {
                     <TableCell className="text-muted-foreground text-xs">
                       {u.ultimaAnalise
                         ? new Date(u.ultimaAnalise).toLocaleDateString(
-                            'pt-BR',
-                            {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            }
-                          )
+                          'pt-BR',
+                          {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }
+                        )
                         : '—'}
                     </TableCell>
                   </TableRow>
@@ -391,12 +391,12 @@ export default async function AdminPage() {
                     <TableCell className="text-muted-foreground text-xs">
                       {a.createdAt
                         ? new Date(a.createdAt).toLocaleDateString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
                         : '—'}
                     </TableCell>
                     <TableCell>

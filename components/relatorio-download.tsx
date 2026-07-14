@@ -17,7 +17,7 @@ const gerarTextoRelatorio = (resultado: ResultadoAnalise, nomeEdital?: string): 
 
   const linhas: string[] = [
     linha,
-    'RELATÓRIO DE ANÁLISE DE INABILITAÇÃO — LICITPRO',
+    'RELATÓRIO DE ANÁLISE DE INABILITAÇÃO — LicitPro Analyzer',
     linha,
     `Data da análise: ${dataHora}`,
     nomeEdital ? `Edital: ${nomeEdital}` : '',
@@ -78,7 +78,7 @@ const gerarTextoRelatorio = (resultado: ResultadoAnalise, nomeEdital?: string): 
   linhas.push(resultado.recurso_administrativo)
   linhas.push('')
   linhas.push(linha)
-  linhas.push('Gerado por LicitPro — Analisador de Inabilitação')
+  linhas.push('Gerado por LicitPro Analyzer — Analisador de Inabilitação')
   linhas.push(linha)
 
   return linhas.filter((l) => l !== null).join('\n')

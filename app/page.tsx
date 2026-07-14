@@ -160,7 +160,7 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight">
-                LicitPro
+                LicitPro Analyzer
               </h1>
               <p className="text-xs text-muted-foreground font-medium">Analisador de Inabilitação</p>
             </div>
@@ -224,9 +224,9 @@ export default function Home() {
             <AlertDescription>
               <p>
                 {statusPlano.motivo === 'trial_expirado'
-                  ? 'Seu período de avaliação gratuita terminou. Assine um plano para continuar usando o LicitPro.'
+                  ? 'Seu período de avaliação gratuita terminou. Assine um plano para continuar usando o LicitPro Analyzer.'
                   : statusPlano.plano === 'gratis'
-                    ? 'Você já utilizou a análise gratuita. Assine um plano para continuar usando o LicitPro.'
+                    ? 'Você já utilizou a análise gratuita. Assine um plano para continuar usando o LicitPro Analyzer.'
                     : `Você utilizou as ${statusPlano.limite} análises mensais do plano ${statusPlano.nomePlano}. Faça upgrade para continuar.`}
               </p>
               <Button

@@ -45,6 +45,10 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
     router.refresh()
   }
 
+  const hoje = new Date()
+  const hora = hoje.getHours()
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
+
   return (
     <div className="w-full max-w-sm">
       {/* 
@@ -60,7 +64,7 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
               <ShieldAlert className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">LicitPro</h1>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">LicitPro Analyzer</h1>
               <p className="text-xs text-slate-600 font-semibold">Analisador de Inabilitação</p>
             </div>
           </div>
@@ -167,6 +171,7 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
 
         <CardFooter className="border-t border-slate-200 pt-4 mt-2">
           <p className="text-sm text-slate-600 text-center w-full font-medium">
+            {saudacao}
             {ehCadastro ? (
               <>
                 Já tem uma conta?{' '}

@@ -1,12 +1,12 @@
 // lib/planos.ts
-// Configuração central dos planos de assinatura do LicitPro.
+// Configuração central dos planos de assinatura do LicitPro Analyzer.
 // Este módulo é puro (sem acesso a banco) e pode ser importado no client.
 // A verificação de cota fica em lib/planos-server.ts.
 
 export const PLANOS = {
     gratis: {
         nome: 'Grátis',
-        descricao: 'Experimente o LicitPro por 2 dias',
+        descricao: 'Experimente o LicitPro Analyzer por 2 dias',
         limiteAnalises: 1,
         duracaoDias: 2,
         preco: null as number | null,
