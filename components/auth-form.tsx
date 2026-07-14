@@ -41,7 +41,7 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
       return
     }
 
-    router.push('/')
+    router.push('/dashboard')
     router.refresh()
   }
   return (
