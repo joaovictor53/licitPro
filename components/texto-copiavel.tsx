@@ -32,8 +32,8 @@ export const TextoCopiavel = ({ titulo, texto, icone }: TextoCopiavelProps) => {
           <Button variant="outline" size="xs" onClick={copiar} aria-label={`Copiar ${titulo}`}>
             {copiado ? (
               <>
-                <Check className="text-emerald-500" />
-                <span className="text-emerald-600 font-medium">Copiado!</span>
+                <Check className="text-amber-600" />
+                <span className="text-amber-700 font-medium">Copiado!</span>
               </>
             ) : (
               <>

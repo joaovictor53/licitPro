@@ -144,9 +144,9 @@ export default async function AdminPage() {
       barra: 'bg-blue-500',
     },
     emerald: {
-      text: 'text-emerald-600 dark:text-emerald-400',
-      iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-      barra: 'bg-emerald-500',
+      text: 'text-indigo-600 dark:text-indigo-400',
+      iconBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+      barra: 'bg-indigo-500',
     },
     amber: {
       text: 'text-amber-600 dark:text-amber-400',
@@ -429,7 +429,7 @@ export default async function AdminPage() {
                         <span
                           className={cn(
                             badgeVariants({ variant: 'secondary' }),
-                            'bg-emerald-100 text-emerald-700'
+                            'bg-amber-100 text-amber-700'
                           )}
                         >
                           <CheckCircle />

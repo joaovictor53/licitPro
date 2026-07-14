@@ -258,7 +258,7 @@ function HeroMockup() {
                     <div className="text-[11px] font-semibold truncate text-slate-200">{f.name}</div>
                     <div className="text-[9px] text-slate-400">{f.size}</div>
                   </div>
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-gold" />
                 </div>
               ))}
               <div className="mt-2 flex items-center justify-center gap-2 rounded-lg border border-dashed border-gold/30 py-3 text-[11px] text-slate-400">

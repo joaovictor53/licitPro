@@ -41,7 +41,7 @@ export const UploadCard = ({ label, etapa, arquivo, onArquivo, erro }: UploadCar
   const arquivoGrande = arquivo && arquivo.size > AVISO_TAMANHO
 
   const getBorderClasses = () => {
-    if (arquivo) return 'border-emerald-400 bg-emerald-50/50'
+    if (arquivo) return 'border-amber-400 bg-amber-50/50'
     if (erro) return 'border-destructive bg-destructive/5'
     if (isDragActive) return 'border-primary bg-primary/5'
     return 'border-dashed border-border hover:border-primary hover:bg-primary/5'
@@ -65,11 +65,11 @@ export const UploadCard = ({ label, etapa, arquivo, onArquivo, erro }: UploadCar
 
             {arquivo ? (
               <>
-                <CheckCircle className="w-7 h-7 text-emerald-500" />
-                <span className="text-sm font-medium text-emerald-700 text-center break-all leading-snug">
+                <CheckCircle className="w-7 h-7 text-amber-600" />
+                <span className="text-sm font-medium text-amber-700 text-center break-all leading-snug">
                   {arquivo.name}
                 </span>
-                <span className="text-xs text-emerald-500">{formatarTamanho(arquivo.size)}</span>
+                <span className="text-xs text-amber-600">{formatarTamanho(arquivo.size)}</span>
               </>
             ) : erro ? (
               <>

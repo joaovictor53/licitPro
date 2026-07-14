@@ -395,9 +395,9 @@ export default function DashboardPage() {
 
             {/* Não conformidades */}
             {resultado.nao_conformidades.length === 0 ? (
-              <Alert className="mb-4 border-emerald-200 bg-emerald-50 text-emerald-700">
-                <CheckCircle className="text-emerald-500" />
-                <AlertDescription className="text-emerald-700">
+              <Alert className="mb-4 border-amber-200 bg-amber-50 text-amber-800">
+                <CheckCircle className="text-amber-600" />
+                <AlertDescription className="text-amber-800">
                   Nenhuma irregularidade encontrada na proposta do concorrente.
                 </AlertDescription>
               </Alert>

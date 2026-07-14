@@ -143,7 +143,7 @@ export default async function HistoricoPage() {
                         <span
                           className={cn(
                             badgeVariants({ variant: 'secondary' }),
-                            'bg-emerald-100 text-emerald-700 flex-shrink-0'
+                            'bg-amber-100 text-amber-700 flex-shrink-0'
                           )}
                         >
                           <CheckCircle />
