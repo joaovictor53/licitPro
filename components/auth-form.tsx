@@ -44,11 +44,6 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
     router.push('/')
     router.refresh()
   }
-
-  const hoje = new Date()
-  const hora = hoje.getHours()
-  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
-
   return (
     <div className="w-full max-w-sm">
       {/* 
@@ -171,7 +166,7 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
 
         <CardFooter className="border-t border-slate-200 pt-4 mt-2">
           <p className="text-sm text-slate-600 text-center w-full font-medium">
-            {saudacao}
+
             {ehCadastro ? (
               <>
                 Já tem uma conta?{' '}
