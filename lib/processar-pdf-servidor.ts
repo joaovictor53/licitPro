@@ -10,6 +10,8 @@
 // em vez de instanciar nossa própria fábrica de canvas.
 
 import { createWorker } from 'tesseract.js'
+import { mkdirSync } from 'fs'
+import { join } from 'path'
 
 export interface TextoPdf {
   text: string
@@ -19,6 +21,14 @@ export interface TextoPdf {
 // Abaixo disso (por página, ignorando espaços), a página é tratada como escaneada
 // e vai para OCR em vez do texto extraído diretamente do PDF.
 const MIN_CARACTERES_UTEIS_POR_PAGINA = 25
+
+// Diretório onde o tesseract.js guarda o modelo de idioma (por.traineddata,
+// ~2.5MB) já baixado, para não baixar de novo a cada análise. Sobrevive
+// enquanto a instância da Railway estiver de pé; some a cada redeploy (o
+// download de ~2.5MB acontece de novo 1x, na primeira análise com OCR depois
+// de subir uma instância nova).
+const DIRETORIO_CACHE_OCR = join(process.cwd(), '.cache', 'tesseract')
+mkdirSync(DIRETORIO_CACHE_OCR, { recursive: true })
 
 export const processarPdfServidor = async (buffer: Buffer): Promise<TextoPdf> => {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
@@ -44,11 +54,7 @@ export const processarPdfServidor = async (buffer: Buffer): Promise<TextoPdf> =>
   }
 
   if (paginasParaOcr.length > 0) {
-    // Na primeira execução, o tesseract.js baixa e armazena em cache o modelo de
-    // idioma (~2.5MB, arquivo "por.traineddata") no diretório de trabalho do
-    // processo. Numa instância nova da Railway esse cache não existe ainda, então
-    // a primeira análise com OCR após um deploy paga esse download uma vez.
-    const worker = await createWorker('por')
+    const worker = await createWorker('por', undefined, { cachePath: DIRETORIO_CACHE_OCR })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const canvasFactory = documentoPdf.canvasFactory as any
 

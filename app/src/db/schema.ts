@@ -1,5 +1,5 @@
 import { pgTable, text, timestamp, boolean, uuid, integer, jsonb, index } from 'drizzle-orm/pg-core';
-import type { ResultadoAnalise } from '@/types/analise-tipos';
+import type { NaoConformidade, ResultadoAnalise } from '@/types/analise-tipos';
 
 export const user = pgTable('user', {
     id: text('id').primaryKey(),
@@ -55,6 +55,19 @@ export const verification = pgTable('verification', {
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Cache global (entre usuários) das não conformidades já encontradas para um
+// mesmo par de documentos (edital + proposta do concorrente), identificado
+// pelo hash do conteúdo dos dois PDFs. Evita rechamar a Groq para reanalisar
+// documentos idênticos já vistos — o recurso/mensagem final continua sendo
+// gerado sempre na hora, pois depende dos dados cadastrais de cada usuário.
+export const analiseCache = pgTable('analise_cache', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    hash: text('hash').notNull().unique(),
+    resumo: text('resumo').notNull(),
+    naoConformidades: jsonb('nao_conformidades').$type<NaoConformidade[]>().notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 export const analise = pgTable('analise', {

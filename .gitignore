@@ -45,3 +45,4 @@ next-env.d.ts
 
 # dados de idioma do tesseract.js (OCR), baixados em tempo de execução
 *.traineddata
+.cache/

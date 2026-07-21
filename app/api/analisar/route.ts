@@ -1,11 +1,13 @@
 // app/api/analisar/route.ts
 
+import { createHash } from 'crypto'
 import Groq, { RateLimitError } from 'groq-sdk'
+import { eq } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/app/src'
-import { analise } from '@/app/src/db/schema'
+import { analise, analiseCache } from '@/app/src/db/schema'
 import { obterStatusPlano } from '@/lib/planos-server'
 import { processarPdfServidor } from '@/lib/processar-pdf-servidor'
 import { NaoConformidade, ResultadoAnalise } from '@/types/analise-tipos'
@@ -381,6 +383,50 @@ const deduplicarNaoConformidades = (itens: NaoConformidade[]): NaoConformidade[]
   return Array.from(vistos.values()).map((item, indice) => ({ ...item, id: indice + 1 }))
 }
 
+/**
+ * Redige o recurso administrativo e a mensagem ao pregoeiro a partir de uma
+ * lista de não conformidades já apurada (nova ou reaproveitada do cache) —
+ * sempre roda por usuário, pois usa os dados cadastrais do recorrente.
+ */
+const sintetizarResultado = async (
+  groq: Groq,
+  naoConformidades: NaoConformidade[],
+  dadosRecorrente: string
+): Promise<ResultadoAnalise> => {
+  const userMessageSintese = [
+    '=== DADOS DO RECORRENTE ===',
+    dadosRecorrente,
+    '',
+    '=== NÃO CONFORMIDADES CONSOLIDADAS ===',
+    JSON.stringify(naoConformidades, null, 2),
+    '',
+    'Redija o resumo, o recurso administrativo e a mensagem ao pregoeiro com base na lista acima.',
+  ].join('\n')
+
+  const rawTextSintese = await chamarGroqComRetry(groq, {
+    model: 'llama-3.3-70b-versatile',
+    maxTokens: 2048,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT_SINTESE },
+      { role: 'user', content: userMessageSintese },
+    ],
+  })
+
+  const sintese = JSON.parse(rawTextSintese) as {
+    resumo: string
+    recurso_administrativo: string
+    mensagem_pregoeiro: string
+  }
+
+  return {
+    resumo: sintese.resumo,
+    total_irregularidades: naoConformidades.length,
+    nao_conformidades: naoConformidades,
+    recurso_administrativo: sintese.recurso_administrativo,
+    mensagem_pregoeiro: sintese.mensagem_pregoeiro,
+  }
+}
+
 export const POST = async (request: NextRequest): Promise<NextResponse> => {
   try {
     const session = await auth.api.getSession({ headers: await headers() })
@@ -419,45 +465,6 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
       )
     }
 
-    // Extração de texto + OCR (para páginas escaneadas) rodam no servidor —
-    // ver lib/processar-pdf-servidor.ts.
-    let editalPdf, concorrentePdf
-    try {
-      ;[editalPdf, concorrentePdf] = await Promise.all([
-        processarPdfServidor(Buffer.from(await editalArquivo.arrayBuffer())),
-        processarPdfServidor(Buffer.from(await concorrenteArquivo.arrayBuffer())),
-      ])
-    } catch (erroExtracao) {
-      console.error('Erro ao processar PDF:', erroExtracao)
-      return NextResponse.json(
-        { erro: 'Não foi possível ler um dos PDFs. Verifique se o arquivo não está corrompido.' },
-        { status: 422 }
-      )
-    }
-
-    const editalTexto = editalPdf.text
-    const concorrenteTexto = concorrentePdf.text
-
-    // Verificação de segurança: mesmo com OCR, o documento pode não ter
-    // nenhum conteúdo legível (ex: página em branco, digitalização ilegível).
-    if (editalTexto.replace(MARCADOR_PAGINA, '').trim().length < 100) {
-      return NextResponse.json(
-        { erro: 'Não foi possível extrair conteúdo legível do edital, mesmo com OCR. Verifique a qualidade do arquivo.' },
-        { status: 422 }
-      )
-    }
-    if (concorrenteTexto.replace(MARCADOR_PAGINA, '').trim().length < 100) {
-      return NextResponse.json(
-        { erro: 'Não foi possível extrair conteúdo legível da proposta do concorrente, mesmo com OCR. Verifique a qualidade do arquivo.' },
-        { status: 422 }
-      )
-    }
-
-    // Seções mais relevantes do edital (a "régua" de exigências — resumir aqui
-    // tem risco muito menor do que resumir a documentação do concorrente,
-    // que é de onde vêm as evidências literais citadas no recurso).
-    const editalFiltrado = extrairSecoesCriticas(editalTexto, PALAVRAS_CHAVE_EDITAL, LIMITE_POR_DOCUMENTO)
-
     // Dados cadastrais do usuário (recorrente), para auto-preencher o recurso e a
     // mensagem ao pregoeiro em vez de deixar placeholders vazios.
     const dadosRecorrente = [
@@ -468,107 +475,150 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-    // Documento do concorrente não pode ser truncado (é dele que vêm as
-    // evidências literais) — divide-se em blocos sequenciais e, se houver mais
-    // de um, cada bloco é analisado numa chamada separada (map-reduce).
-    const blocosConcorrente = dividirEmBlocosSequenciais(concorrenteTexto, LIMITE_POR_DOCUMENTO)
+    const editalBuffer = Buffer.from(await editalArquivo.arrayBuffer())
+    const concorrenteBuffer = Buffer.from(await concorrenteArquivo.arrayBuffer())
+
+    // Cache global (entre usuários) por conteúdo dos PDFs: se esse par exato de
+    // edital + proposta já foi analisado antes (ex: outro concorrente contestando
+    // a mesma vencedora no mesmo edital), reaproveita as não conformidades já
+    // encontradas e pula direto para a redação do recurso — sem extração/OCR nem
+    // rechamar a Groq para reanalisar documentos idênticos.
+    const hashDocumentos = createHash('sha256')
+      .update(editalBuffer)
+      .update('|')
+      .update(concorrenteBuffer)
+      .digest('hex')
+
+    const [cacheExistente] = await db
+      .select()
+      .from(analiseCache)
+      .where(eq(analiseCache.hash, hashDocumentos))
+      .limit(1)
 
     let resultado: ResultadoAnalise
 
-    if (blocosConcorrente.length <= 1) {
-      // Caminho simples (documento cabe em uma única chamada) — sem overhead extra.
-      const userMessage = [
-        '=== DADOS DO RECORRENTE ===',
-        dadosRecorrente,
-        '',
-        `=== DOCUMENTO 1: EDITAL (${editalPdf.numpages} páginas — seções relevantes extraídas) ===`,
-        editalFiltrado,
-        '',
-        `=== DOCUMENTO 2: PROPOSTA DO CONCORRENTE (${concorrentePdf.numpages} páginas) ===`,
-        blocosConcorrente[0] ?? '',
-        '',
-        'Analise os documentos acima e retorne APENAS o JSON com as não conformidades encontradas.',
-      ].join('\n')
-
-      const rawText = await chamarGroqComRetry(groq, {
-        model: 'llama-3.3-70b-versatile',
-        maxTokens: 2048,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userMessage },
-        ],
-      })
-
-      resultado = JSON.parse(rawText)
+    if (cacheExistente) {
+      resultado = await sintetizarResultado(groq, cacheExistente.naoConformidades, dadosRecorrente)
     } else {
-      // Documento grande: mapear (analisar cada bloco) e depois reduzir
-      // (consolidar achados e só então redigir recurso/mensagem).
-      const respostasPorBloco = await executarComConcorrenciaLimitada(
-        blocosConcorrente,
-        CONCORRENCIA_MAX_BLOCOS,
-        async (bloco, indice) => {
-          const userMessage = [
-            `=== EDITAL (seções relevantes) ===`,
-            editalFiltrado,
-            '',
-            `=== TRECHO ${indice + 1} DE ${blocosConcorrente.length} DA PROPOSTA DO CONCORRENTE ===`,
-            bloco,
-            '',
-            'Analise APENAS este trecho e retorne o JSON com as não conformidades encontradas nele.',
-          ].join('\n')
-
-          const rawText = await chamarGroqComRetry(groq, {
-            model: 'llama-3.3-70b-versatile',
-            maxTokens: 1536,
-            messages: [
-              { role: 'system', content: SYSTEM_PROMPT_MAPA },
-              { role: 'user', content: userMessage },
-            ],
-          })
-
-          try {
-            const parcial = JSON.parse(rawText) as { nao_conformidades?: NaoConformidade[] }
-            return parcial.nao_conformidades ?? []
-          } catch {
-            console.error(`Falha ao interpretar resposta do bloco ${indice + 1}/${blocosConcorrente.length}`)
-            return []
-          }
-        }
-      )
-
-      const naoConformidades = deduplicarNaoConformidades(respostasPorBloco.flat())
-
-      const userMessageSintese = [
-        '=== DADOS DO RECORRENTE ===',
-        dadosRecorrente,
-        '',
-        '=== NÃO CONFORMIDADES CONSOLIDADAS ===',
-        JSON.stringify(naoConformidades, null, 2),
-        '',
-        'Redija o resumo, o recurso administrativo e a mensagem ao pregoeiro com base na lista acima.',
-      ].join('\n')
-
-      const rawTextSintese = await chamarGroqComRetry(groq, {
-        model: 'llama-3.3-70b-versatile',
-        maxTokens: 2048,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT_SINTESE },
-          { role: 'user', content: userMessageSintese },
-        ],
-      })
-
-      const sintese = JSON.parse(rawTextSintese) as {
-        resumo: string
-        recurso_administrativo: string
-        mensagem_pregoeiro: string
+      // Extração de texto + OCR (para páginas escaneadas) rodam no servidor —
+      // ver lib/processar-pdf-servidor.ts.
+      let editalPdf, concorrentePdf
+      try {
+        ;[editalPdf, concorrentePdf] = await Promise.all([
+          processarPdfServidor(editalBuffer),
+          processarPdfServidor(concorrenteBuffer),
+        ])
+      } catch (erroExtracao) {
+        console.error('Erro ao processar PDF:', erroExtracao)
+        return NextResponse.json(
+          { erro: 'Não foi possível ler um dos PDFs. Verifique se o arquivo não está corrompido.' },
+          { status: 422 }
+        )
       }
 
-      resultado = {
-        resumo: sintese.resumo,
-        total_irregularidades: naoConformidades.length,
-        nao_conformidades: naoConformidades,
-        recurso_administrativo: sintese.recurso_administrativo,
-        mensagem_pregoeiro: sintese.mensagem_pregoeiro,
+      const editalTexto = editalPdf.text
+      const concorrenteTexto = concorrentePdf.text
+
+      // Verificação de segurança: mesmo com OCR, o documento pode não ter
+      // nenhum conteúdo legível (ex: página em branco, digitalização ilegível).
+      if (editalTexto.replace(MARCADOR_PAGINA, '').trim().length < 100) {
+        return NextResponse.json(
+          { erro: 'Não foi possível extrair conteúdo legível do edital, mesmo com OCR. Verifique a qualidade do arquivo.' },
+          { status: 422 }
+        )
+      }
+      if (concorrenteTexto.replace(MARCADOR_PAGINA, '').trim().length < 100) {
+        return NextResponse.json(
+          { erro: 'Não foi possível extrair conteúdo legível da proposta do concorrente, mesmo com OCR. Verifique a qualidade do arquivo.' },
+          { status: 422 }
+        )
+      }
+
+      // Seções mais relevantes do edital (a "régua" de exigências — resumir aqui
+      // tem risco muito menor do que resumir a documentação do concorrente,
+      // que é de onde vêm as evidências literais citadas no recurso).
+      const editalFiltrado = extrairSecoesCriticas(editalTexto, PALAVRAS_CHAVE_EDITAL, LIMITE_POR_DOCUMENTO)
+
+      // Documento do concorrente não pode ser truncado (é dele que vêm as
+      // evidências literais) — divide-se em blocos sequenciais e, se houver mais
+      // de um, cada bloco é analisado numa chamada separada (map-reduce).
+      const blocosConcorrente = dividirEmBlocosSequenciais(concorrenteTexto, LIMITE_POR_DOCUMENTO)
+
+      if (blocosConcorrente.length <= 1) {
+        // Caminho simples (documento cabe em uma única chamada) — sem overhead extra.
+        const userMessage = [
+          '=== DADOS DO RECORRENTE ===',
+          dadosRecorrente,
+          '',
+          `=== DOCUMENTO 1: EDITAL (${editalPdf.numpages} páginas — seções relevantes extraídas) ===`,
+          editalFiltrado,
+          '',
+          `=== DOCUMENTO 2: PROPOSTA DO CONCORRENTE (${concorrentePdf.numpages} páginas) ===`,
+          blocosConcorrente[0] ?? '',
+          '',
+          'Analise os documentos acima e retorne APENAS o JSON com as não conformidades encontradas.',
+        ].join('\n')
+
+        const rawText = await chamarGroqComRetry(groq, {
+          model: 'llama-3.3-70b-versatile',
+          maxTokens: 2048,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: userMessage },
+          ],
+        })
+
+        resultado = JSON.parse(rawText)
+      } else {
+        // Documento grande: mapear (analisar cada bloco) e depois reduzir
+        // (consolidar achados e só então redigir recurso/mensagem).
+        const respostasPorBloco = await executarComConcorrenciaLimitada(
+          blocosConcorrente,
+          CONCORRENCIA_MAX_BLOCOS,
+          async (bloco, indice) => {
+            const userMessage = [
+              `=== EDITAL (seções relevantes) ===`,
+              editalFiltrado,
+              '',
+              `=== TRECHO ${indice + 1} DE ${blocosConcorrente.length} DA PROPOSTA DO CONCORRENTE ===`,
+              bloco,
+              '',
+              'Analise APENAS este trecho e retorne o JSON com as não conformidades encontradas nele.',
+            ].join('\n')
+
+            const rawText = await chamarGroqComRetry(groq, {
+              model: 'llama-3.3-70b-versatile',
+              maxTokens: 1536,
+              messages: [
+                { role: 'system', content: SYSTEM_PROMPT_MAPA },
+                { role: 'user', content: userMessage },
+              ],
+            })
+
+            try {
+              const parcial = JSON.parse(rawText) as { nao_conformidades?: NaoConformidade[] }
+              return parcial.nao_conformidades ?? []
+            } catch {
+              console.error(`Falha ao interpretar resposta do bloco ${indice + 1}/${blocosConcorrente.length}`)
+              return []
+            }
+          }
+        )
+
+        const naoConformidades = deduplicarNaoConformidades(respostasPorBloco.flat())
+        resultado = await sintetizarResultado(groq, naoConformidades, dadosRecorrente)
+      }
+
+      // Guarda no cache global para reaproveitar em análises futuras deste
+      // mesmo par de documentos (por qualquer usuário). Falha não quebra a resposta.
+      try {
+        await db.insert(analiseCache).values({
+          hash: hashDocumentos,
+          resumo: resultado.resumo,
+          naoConformidades: resultado.nao_conformidades,
+        }).onConflictDoNothing({ target: analiseCache.hash })
+      } catch (errCache) {
+        console.error('Erro ao salvar cache de análise:', errCache)
       }
     }
 
