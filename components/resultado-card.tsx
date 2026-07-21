@@ -89,6 +89,11 @@ export const ResultadoCard = ({ item }: ResultadoCardProps) => {
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Evidência no documento
                   </span>
+                  {item.pagina != null && (
+                    <Badge variant="outline" className="text-[10px] font-normal py-0">
+                      Página {item.pagina}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground bg-muted/50 border rounded-lg p-2.5 leading-relaxed italic">
                   &ldquo;{item.evidencia}&rdquo;

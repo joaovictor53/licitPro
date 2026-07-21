@@ -94,19 +94,11 @@ export const UploadCard = ({ label, etapa, arquivo, onArquivo, erro }: UploadCar
         <Alert className="border-amber-200 bg-amber-50 text-amber-700">
           <AlertTriangle className="text-amber-500" />
           <AlertDescription className="text-xs text-amber-700">
-            Arquivo grande ({formatarTamanho(arquivo.size)}). Documentos muito extensos podem ser
-            truncados. Considere enviar apenas as seções relevantes do edital.
+            Arquivo grande ({formatarTamanho(arquivo.size)}). Documentos muito extensos podem levar
+            mais tempo para serem analisados.
           </AlertDescription>
         </Alert>
       )}
-
-      <Alert>
-        <AlertTriangle className="text-muted-foreground" />
-        <AlertDescription className="text-xs">
-          O PDF deve conter texto selecionável. PDFs escaneados (imagens) sem OCR não serão
-          processados corretamente.
-        </AlertDescription>
-      </Alert>
     </div>
   )
 }

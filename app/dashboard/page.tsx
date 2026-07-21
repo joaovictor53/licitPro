@@ -16,6 +16,7 @@ import {
   History,
   BarChart3,
   Gem,
+  UserCircle,
 } from 'lucide-react'
 import type { StatusPlano } from '@/lib/planos'
 import Link from 'next/link'
@@ -24,7 +25,6 @@ import { ResultadoCard } from '@/components/resultado-card'
 import { TextoCopiavel } from '@/components/texto-copiavel'
 import { RelatorioDownload } from '@/components/relatorio-download'
 import { ResultadoAnalise } from '@/types/analise-tipos'
-import { extrairTextoPdfCliente } from '@/lib/extrair-texto-pdf'
 import { authClient, useSession } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -89,29 +89,15 @@ export default function DashboardPage() {
     }, 4000)
 
     try {
-      let editalPdf, concorrentePdf
-      try {
-        ;[editalPdf, concorrentePdf] = await Promise.all([
-          extrairTextoPdfCliente(edital),
-          extrairTextoPdfCliente(concorrente),
-        ])
-      } catch {
-        throw new Error(
-          'Não foi possível ler um dos PDFs. Verifique se o arquivo não está corrompido.'
-        )
-      }
+      const formData = new FormData()
+      formData.append('edital', edital)
+      formData.append('concorrente', concorrente)
+      formData.append('nomeEdital', edital.name)
+      formData.append('nomeProposta', concorrente.name)
 
       const resposta = await fetch('/api/analisar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          editalTexto: editalPdf.text,
-          editalPaginas: editalPdf.numpages,
-          concorrenteTexto: concorrentePdf.text,
-          concorrentePaginas: concorrentePdf.numpages,
-          nomeEdital: edital.name,
-          nomeProposta: concorrente.name,
-        }),
+        body: formData,
       })
 
       const dados = await resposta.json()
@@ -203,6 +189,15 @@ export default function DashboardPage() {
             >
               <Gem />
               Planos
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              nativeButton={false}
+              render={<Link href="/perfil" />}
+            >
+              <UserCircle />
+              Perfil
             </Button>
             {sessao.user.role === 'admin' && (
               <Button

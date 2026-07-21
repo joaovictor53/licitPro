@@ -6,6 +6,7 @@ export interface NaoConformidade {
   item_edital: string
   problema: string
   evidencia?: string
+  pagina?: number | null
   recomendacao?: string
   gravidade: 'material' | 'sanável'
   fundamento_legal: string

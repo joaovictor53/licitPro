@@ -32,6 +32,24 @@ export const auth = betterAuth({
                 input: false,
                 defaultValue: 'gratis',
             },
+            // Dados cadastrais da empresa, preenchidos pelo próprio usuário no perfil
+            // e usados para auto-preencher o recurso administrativo e a mensagem ao
+            // pregoeiro (evita placeholders vazios como "[nome do recorrente]").
+            razaoSocial: {
+                type: 'string',
+                required: false,
+                input: true,
+            },
+            cnpj: {
+                type: 'string',
+                required: false,
+                input: true,
+            },
+            endereco: {
+                type: 'string',
+                required: false,
+                input: true,
+            },
         },
     },
     databaseHooks: {

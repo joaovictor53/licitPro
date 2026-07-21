@@ -10,6 +10,9 @@ export const user = pgTable('user', {
     role: text('role').notNull().default('user'),
     plano: text('plano').notNull().default('gratis'),
     trialExpiresAt: timestamp('trial_expires_at'),
+    razaoSocial: text('razao_social'),
+    cnpj: text('cnpj'),
+    endereco: text('endereco'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
