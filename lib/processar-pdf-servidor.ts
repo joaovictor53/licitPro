@@ -1,14 +1,3 @@
-// lib/processar-pdf-servidor.ts
-// Extração de texto de PDF no servidor (Node), com fallback de OCR para páginas
-// escaneadas (sem camada de texto). Roda no servidor porque o deploy é na Railway
-// (servidor Node persistente, sem o limite de payload de 4.5MB das Serverless
-// Functions da Vercel que antes obrigava a extração a rodar no navegador).
-//
-// O build "legacy" do pdfjs-dist já detecta que está em Node e usa
-// @napi-rs/canvas internamente (via NodeCanvasFactory) para qualquer
-// renderização de página — por isso reaproveitamos `documento.canvasFactory`
-// em vez de instanciar nossa própria fábrica de canvas.
-
 import { createWorker } from 'tesseract.js'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
@@ -19,15 +8,8 @@ export interface TextoPdf {
   numpages: number
 }
 
-// Abaixo disso (por página, ignorando espaços), a página é tratada como escaneada
-// e vai para OCR em vez do texto extraído diretamente do PDF.
 const MIN_CARACTERES_UTEIS_POR_PAGINA = 25
 
-// Diretório onde o tesseract.js guarda o modelo de idioma (por.traineddata,
-// ~2.5MB) já baixado, para não baixar de novo a cada análise. Sobrevive
-// enquanto a instância da Railway estiver de pé; some a cada redeploy (o
-// download de ~2.5MB acontece de novo 1x, na primeira análise com OCR depois
-// de subir uma instância nova).
 const DIRETORIO_CACHE_OCR = join(process.cwd(), '.cache', 'tesseract')
 mkdirSync(DIRETORIO_CACHE_OCR, { recursive: true })
 

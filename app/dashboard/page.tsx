@@ -24,6 +24,7 @@ import { UploadCard } from '@/components/upload-card'
 import { ResultadoCard } from '@/components/resultado-card'
 import { TextoCopiavel } from '@/components/texto-copiavel'
 import { RelatorioDownload } from '@/components/relatorio-download'
+import { AvisoResponsabilidade } from '@/components/aviso-responsabilidade'
 import { ResultadoAnalise } from '@/types/analise-tipos'
 import { authClient, useSession } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
@@ -414,6 +415,7 @@ export default function DashboardPage() {
 
             {/* Relatório + Textos gerados */}
             <div className="space-y-4 mb-6">
+              <AvisoResponsabilidade />
               <RelatorioDownload resultado={resultado} nomeEdital={edital?.name} />
               <TextoCopiavel
                 titulo="Recurso administrativo"

@@ -689,7 +689,7 @@ function Footer() {
           />
           <FooterCol
             title="Legal"
-            links={['Termos de uso', 'Privacidade', 'LGPD', 'Contato']}
+            links={[{ label: 'Termos de uso', href: '/termos' }, 'Privacidade', 'LGPD', 'Contato']}
           />
         </div>
         <div className="mt-12 pt-6 border-t border-gold/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 font-medium">
@@ -701,18 +701,31 @@ function Footer() {
   )
 }
 
-function FooterCol({ title, links }: { title: string; links: string[] }) {
+function FooterCol({
+  title,
+  links,
+}: {
+  title: string
+  links: Array<string | { label: string; href: string }>
+}) {
   return (
     <div>
       <h4 className="text-sm font-bold text-gold mb-4">{title}</h4>
       <ul className="space-y-2.5">
-        {links.map((l) => (
-          <li key={l}>
-            <a href="#" className="text-sm text-slate-400 hover:text-gold transition-colors font-medium">
-              {l}
-            </a>
-          </li>
-        ))}
+        {links.map((l) => {
+          const label = typeof l === 'string' ? l : l.label
+          const href = typeof l === 'string' ? '#' : l.href
+          return (
+            <li key={label}>
+              <a
+                href={href}
+                className="text-sm text-slate-400 hover:text-gold transition-colors font-medium"
+              >
+                {label}
+              </a>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

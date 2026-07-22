@@ -18,6 +18,7 @@ import { analise } from '@/app/src/db/schema'
 import { ResultadoCard } from '@/components/resultado-card'
 import { TextoCopiavel } from '@/components/texto-copiavel'
 import { RelatorioDownload } from '@/components/relatorio-download'
+import { AvisoResponsabilidade } from '@/components/aviso-responsabilidade'
 import type { ResultadoAnalise } from '@/types/analise-tipos'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
@@ -171,6 +172,7 @@ export default async function HistoricoDetalhePage({
 
         {/* Relatório + Textos gerados */}
         <div className="space-y-4 mb-6">
+          <AvisoResponsabilidade />
           <RelatorioDownload
             resultado={resultado}
             nomeEdital={registro.nomeEdital}
