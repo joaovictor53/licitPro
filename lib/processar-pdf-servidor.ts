@@ -12,6 +12,7 @@
 import { createWorker } from 'tesseract.js'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 
 export interface TextoPdf {
   text: string
@@ -32,8 +33,16 @@ mkdirSync(DIRETORIO_CACHE_OCR, { recursive: true })
 
 export const processarPdfServidor = async (buffer: Buffer): Promise<TextoPdf> => {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-
-  const documentoPdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(
+    join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs')
+  ).href
+  const raizPdfjs = join(process.cwd(), 'node_modules', 'pdfjs-dist')
+  const documentoPdf = await pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    standardFontDataUrl: join(raizPdfjs, 'standard_fonts') + '/',
+    cMapUrl: join(raizPdfjs, 'cmaps') + '/',
+    cMapPacked: true,
+  }).promise
 
   const numpages = documentoPdf.numPages
   const textosPorPagina: string[] = new Array(numpages).fill('')
@@ -54,8 +63,20 @@ export const processarPdfServidor = async (buffer: Buffer): Promise<TextoPdf> =>
   }
 
   if (paginasParaOcr.length > 0) {
-    const worker = await createWorker('por', undefined, { cachePath: DIRETORIO_CACHE_OCR })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
+    const workerPath = join(
+      process.cwd(),
+      'node_modules',
+      'tesseract.js',
+      'src',
+      'worker-script',
+      'node',
+      'index.js'
+    )
+    const worker = await createWorker('por', undefined, {
+      cachePath: DIRETORIO_CACHE_OCR,
+      workerPath,
+    })
     const canvasFactory = documentoPdf.canvasFactory as any
 
     try {
@@ -82,10 +103,6 @@ export const processarPdfServidor = async (buffer: Buffer): Promise<TextoPdf> =>
   }
 
   await documentoPdf.destroy()
-
-  // Marcador de página preservado no texto para que a análise (extrairSecoesCriticas
-  // / dividirEmBlocosComPagina em app/api/analisar/route.ts) saiba de qual página do
-  // PDF cada trecho veio — necessário para citar evidências com página exata.
   const text = textosPorPagina
     .map((texto, indice) => `[[PÁGINA ${indice + 1}]]\n${texto}`)
     .join('\n\n')
