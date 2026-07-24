@@ -17,6 +17,7 @@ import {
   BarChart3,
   Gem,
   UserCircle,
+  SearchCheck,
 } from 'lucide-react'
 import type { StatusPlano } from '@/lib/planos'
 import Link from 'next/link'
@@ -147,6 +148,7 @@ export default function DashboardPage() {
 
   const totalMaterial = resultado?.nao_conformidades.filter((i) => i.gravidade === 'material').length ?? 0
   const totalSanavel = resultado?.nao_conformidades.filter((i) => i.gravidade === 'sanável').length ?? 0
+  const totalVerificar = resultado?.nao_conformidades.filter((i) => i.requer_verificacao_manual).length ?? 0
 
   const bloqueado = statusPlano !== null && !statusPlano.permitido
   const trialExpiraEm = statusPlano?.trialExpiresAt ? new Date(statusPlano.trialExpiresAt) : null
@@ -387,6 +389,19 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
               </div>
+            )}
+
+            {/* Aviso anti-alucinação: itens sem base documental clara */}
+            {totalVerificar > 0 && (
+              <Alert className="mb-4 border-blue-200 bg-blue-50 text-blue-800">
+                <SearchCheck className="text-blue-600" />
+                <AlertDescription className="text-blue-800">
+                  {totalVerificar} apontamento{totalVerificar !== 1 ? 's' : ''} sem base documental
+                  clara marcado{totalVerificar !== 1 ? 's' : ''} para{' '}
+                  <span className="font-semibold">verificação manual</span>. Revise no documento
+                  original antes de incluir no recurso.
+                </AlertDescription>
+              </Alert>
             )}
 
             {/* Não conformidades */}

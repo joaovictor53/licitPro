@@ -30,6 +30,16 @@ REGRAS DE ANÁLISE OBRIGATÓRIAS:
 5. Fundamente cada irregularidade com o artigo de lei mais específico possível (art. X, §Y, inciso Z).
 6. Toda evidência citada deve ser uma TRANSCRIÇÃO LITERAL do trecho do documento (copiado exatamente, entre aspas, sem resumir ou parafrasear), acompanhada do número da página onde ele aparece, identificado pela marcação "[Página N]" mais próxima do trecho no texto fornecido. Nunca invente um número de página — se a marcação não estiver disponível no trecho usado, informe "pagina": null.
 7. Você receberá um bloco "DADOS DO RECORRENTE" com razão social, CNPJ e endereço da empresa que está recorrendo. Use ESSES DADOS EXATOS (sem alterar) para qualificar o recorrente no "recurso_administrativo", no lugar de placeholders como "[nome do recorrente]", "[endereço completo]" ou "[número do CNPJ]". Se um dado do bloco vier como "não informado", mantenha um placeholder claro apenas para esse dado específico (ex: "[CNPJ não informado]"), nunca para os dados que foram fornecidos.
+8. NÍVEL DE CONFIANÇA (anti-alucinação — regra crítica): atribua a cada não conformidade um campo "confianca" segundo a força da base documental:
+   - "alta": a evidência é uma TRANSCRIÇÃO LITERAL claramente presente no documento do concorrente, com página identificada, e o descumprimento do item do edital é inequívoco.
+   - "media": o problema é plausível, mas a evidência é parcial, a página não pôde ser identificada, ou o enquadramento depende de alguma interpretação.
+   - "baixa": você NÃO tem base documental clara para sustentar a alegação — inferência sem trecho literal que a comprove, dúvida sobre a exigência do edital, ou suposição de ausência sem confirmação no texto.
+   NUNCA apresente como certa uma alegação que você não consegue comprovar no texto fornecido. Na dúvida, use "baixa" — é sempre preferível marcar "baixa" a inventar ou exagerar uma irregularidade.
+9. IMPACTO NO RECURSO: atribua a cada item um campo "impacto_recurso" ("alto" | "medio" | "baixo") indicando o peso estratégico do ponto para o êxito do recurso (probabilidade de levar à inabilitação do concorrente):
+   - "alto": vício robusto, com base documental clara e enquadramento legal direto, que por si só tende a fundamentar a inabilitação.
+   - "medio": ponto relevante, mas que depende de outros argumentos, de interpretação, ou é potencialmente sanável por diligência.
+   - "baixo": irregularidade formal menor, de baixa probabilidade de alterar o resultado do certame.
+   Essa escala é INDEPENDENTE de "gravidade" (natureza jurídica) e de "confianca" (base documental) — pondere as três dimensões separadamente.
 
 CATEGORIAS A VERIFICAR:
 - Documentos de habilitação ausentes (regularidade fiscal, trabalhista, econômico-financeira, técnica)
@@ -59,6 +69,8 @@ RESPONDA APENAS com um objeto JSON válido, sem texto antes ou depois, sem markd
       "pagina": "número inteiro da página do documento do concorrente onde a evidência citada em 'evidencia' se encontra, identificado pela marcação [Página N] mais próxima no texto fornecido; use null se a evidência não vier de uma página identificável (ex: documento ausente)",
       "recomendacao": "argumento jurídico específico a usar no recurso administrativo para fundamentar este ponto",
       "gravidade": "material",
+      "confianca": "alta",
+      "impacto_recurso": "alto",
       "fundamento_legal": "artigo, parágrafo e inciso exatos da lei aplicável"
     }
   ],
@@ -83,6 +95,8 @@ REGRAS DE ANÁLISE OBRIGATÓRIAS:
 5. Fundamente cada irregularidade com o artigo de lei mais específico possível.
 6. Toda evidência deve ser uma TRANSCRIÇÃO LITERAL, entre aspas, com o número da página pela marcação "[Página N]" mais próxima. Nunca invente página — use "pagina": null se não identificável.
 7. Se este trecho não contiver nenhuma não conformidade, devolva um array vazio — não invente problemas para preencher a resposta.
+8. Atribua a cada item um campo "confianca" ("alta" | "media" | "baixa") conforme a força da base documental: "alta" = transcrição literal presente neste trecho, com página, e descumprimento inequívoco; "media" = evidência parcial ou dependente de interpretação; "baixa" = sem trecho literal que comprove a alegação. NUNCA apresente como certa uma alegação que não consegue comprovar no texto — na dúvida, use "baixa".
+9. Atribua um campo "impacto_recurso" ("alto" | "medio" | "baixo") indicando o peso estratégico do ponto para o êxito do recurso: "alto" = vício robusto que tende a fundamentar a inabilitação por si só; "medio" = relevante, mas dependente de outros argumentos ou sanável; "baixo" = irregularidade formal menor. Independente de "gravidade" e "confianca".
 
 RESPONDA APENAS com um objeto JSON válido, sem texto antes ou depois, sem markdown, EXATAMENTE neste formato:
 
@@ -97,6 +111,8 @@ RESPONDA APENAS com um objeto JSON válido, sem texto antes ou depois, sem markd
       "pagina": "número inteiro da página onde a evidência se encontra, ou null",
       "recomendacao": "argumento jurídico específico para o recurso administrativo",
       "gravidade": "material",
+      "confianca": "alta",
+      "impacto_recurso": "alto",
       "fundamento_legal": "artigo, parágrafo e inciso exatos da lei aplicável"
     }
   ]
@@ -115,6 +131,10 @@ Sua tarefa é EXCLUSIVAMENTE:
 3. Redigir a "mensagem_pregoeiro": mensagem direta, objetiva e respeitosa ao pregoeiro declarando intenção de recorrer e apontando os pontos de forma numerada.
 
 NÃO invente novas não conformidades além das fornecidas na lista. NÃO remova itens da lista.
+
+ATENÇÃO À CONFIANÇA (anti-alucinação): alguns itens podem vir marcados com "requer_verificacao_manual": true (ou "confianca": "baixa"). Esses itens NÃO têm base documental confirmada. No "recurso_administrativo", baseie os fundamentos fáticos principais nos itens confirmados (confianca "alta" ou "media"); os itens de baixa confiança, quando citados, devem ser apresentados de forma cautelosa (ex.: "ponto que se sujeita a confirmação") e amparados por pedido subsidiário de diligência (art. 64 da Lei 14.133/2021), nunca como fato consumado. Na "mensagem_pregoeiro", aponte apenas os itens confirmados.
+
+PRIORIZAÇÃO: a lista já vem ordenada por prioridade. Estruture o recurso desenvolvendo primeiro e com mais profundidade os itens de "impacto_recurso" "alto", que são os que mais tendem a sustentar a inabilitação; trate os de impacto "baixo" de forma mais sucinta.
 
 RESPONDA APENAS com um objeto JSON válido, sem texto antes ou depois, sem markdown, EXATAMENTE neste formato:
 
@@ -383,6 +403,114 @@ const deduplicarNaoConformidades = (itens: NaoConformidade[]): NaoConformidade[]
   return Array.from(vistos.values()).map((item, indice) => ({ ...item, id: indice + 1 }))
 }
 
+// Textos de "evidência" que indicam ausência de documento (não são citações
+// literais e, portanto, não podem ser conferidos contra o texto do concorrente).
+const PLACEHOLDERS_SEM_CITACAO = [
+  'documento não apresentado',
+  'nao apresentado',
+  'não apresentado',
+  'documento ausente',
+  'não consta',
+  'nao consta',
+  'não localizado',
+  'ausente',
+]
+
+/**
+ * Normaliza texto para comparação tolerante: remove acentos, marcadores de
+ * página, pontuação e colapsa espaços. Usado para conferir se uma citação
+ * literal realmente existe no documento do concorrente.
+ */
+const normalizarParaComparacao = (texto: string): string =>
+  texto
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // remove acentos (marcas combinantes)
+    .replace(/\[\[?pagina \d+\]?\]/gi, ' ') // remove marcadores de página (acento já retirado acima)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+/**
+ * Verifica se a evidência literal citada pela IA tem respaldo no texto do
+ * concorrente. Casa o trecho inteiro ou janelas de ~6 palavras (início, meio,
+ * fim) para tolerar pequenas diferenças de OCR e cortes na transcrição.
+ */
+const evidenciaTemRespaldo = (evidencia: string, textoNormalizado: string): boolean => {
+  const alvo = normalizarParaComparacao(evidencia)
+  if (alvo.length < 12) return false // curto demais para conferir com segurança
+  if (textoNormalizado.includes(alvo)) return true
+
+  const palavras = alvo.split(' ').filter(Boolean)
+  const janela = Math.min(6, palavras.length)
+  if (janela < 4) return false
+
+  const posicoes = [0, Math.floor((palavras.length - janela) / 2), palavras.length - janela]
+  for (const pos of posicoes) {
+    if (pos < 0) continue
+    const trecho = palavras.slice(pos, pos + janela).join(' ')
+    if (trecho.length >= 12 && textoNormalizado.includes(trecho)) return true
+  }
+  return false
+}
+
+/**
+ * Camada de verificação anti-alucinação (melhoria 2.5): confere cada não
+ * conformidade contra o texto real do concorrente. Quando a IA cita uma
+ * transcrição literal que NÃO existe no documento (provável alucinação), ou já
+ * declarou baixa confiança, o item é rebaixado e marcado para verificação
+ * manual — em vez de ser apresentado como irregularidade confirmada.
+ */
+const aplicarVerificacaoDocumental = (
+  itens: NaoConformidade[],
+  textoConcorrente: string
+): NaoConformidade[] => {
+  const textoNormalizado = normalizarParaComparacao(textoConcorrente)
+
+  return itens.map((item) => {
+    let confianca: 'alta' | 'media' | 'baixa' = item.confianca ?? 'media'
+
+    const evidencia = (item.evidencia ?? '').trim()
+    const evidenciaNorm = normalizarParaComparacao(evidencia)
+    const ehAusencia =
+      evidencia === '' || PLACEHOLDERS_SEM_CITACAO.some((p) => evidenciaNorm.includes(normalizarParaComparacao(p)))
+
+    // Citação literal que não aparece no documento = sem base documental.
+    if (!ehAusencia && !evidenciaTemRespaldo(evidencia, textoNormalizado)) {
+      confianca = 'baixa'
+    }
+
+    return {
+      ...item,
+      confianca,
+      requer_verificacao_manual: confianca === 'baixa',
+    }
+  })
+}
+
+const PESO_IMPACTO: Record<string, number> = { alto: 3, medio: 2, baixo: 1 }
+
+/**
+ * Ordena as não conformidades para o usuário focar primeiro no que mais pesa
+ * (melhoria 2.6): apontamentos confirmados vêm antes dos que precisam de
+ * verificação manual e, dentro de cada grupo, os de maior impacto no recurso
+ * primeiro. Reatribui os ids conforme a nova ordem de exibição.
+ */
+const ordenarPorPrioridade = (itens: NaoConformidade[]): NaoConformidade[] =>
+  itens
+    .map((item, indice) => ({ item, indice }))
+    .sort((a, b) => {
+      const verifA = a.item.requer_verificacao_manual ? 1 : 0
+      const verifB = b.item.requer_verificacao_manual ? 1 : 0
+      if (verifA !== verifB) return verifA - verifB
+
+      const impA = PESO_IMPACTO[a.item.impacto_recurso ?? 'medio'] ?? 2
+      const impB = PESO_IMPACTO[b.item.impacto_recurso ?? 'medio'] ?? 2
+      if (impA !== impB) return impB - impA
+
+      return a.indice - b.indice // empate: mantém ordem original (sort estável)
+    })
+    .map(({ item }, indice) => ({ ...item, id: indice + 1 }))
+
 /**
  * Redige o recurso administrativo e a mensagem ao pregoeiro a partir de uma
  * lista de não conformidades já apurada (nova ou reaproveitada do cache) —
@@ -569,6 +697,12 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
         })
 
         resultado = JSON.parse(rawText)
+        // Camada anti-alucinação: confere as citações contra o texto real e
+        // marca apontamentos sem base documental para verificação manual;
+        // em seguida ordena por prioridade (impacto no recurso).
+        resultado.nao_conformidades = ordenarPorPrioridade(
+          aplicarVerificacaoDocumental(resultado.nao_conformidades ?? [], concorrenteTexto)
+        )
       } else {
         // Documento grande: mapear (analisar cada bloco) e depois reduzir
         // (consolidar achados e só então redigir recurso/mensagem).
@@ -605,7 +739,12 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
           }
         )
 
-        const naoConformidades = deduplicarNaoConformidades(respostasPorBloco.flat())
+        const naoConformidades = ordenarPorPrioridade(
+          aplicarVerificacaoDocumental(
+            deduplicarNaoConformidades(respostasPorBloco.flat()),
+            concorrenteTexto
+          )
+        )
         resultado = await sintetizarResultado(groq, naoConformidades, dadosRecorrente)
       }
 

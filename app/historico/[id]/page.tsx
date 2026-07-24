@@ -11,6 +11,7 @@ import {
   CheckCircle,
   MessageSquare,
   Clock,
+  SearchCheck,
 } from 'lucide-react'
 import { exigirUsuario } from '@/lib/sessao'
 import { db } from '@/app/src'
@@ -57,6 +58,9 @@ export default async function HistoricoDetalhePage({
   ).length
   const totalSanavel = resultado.nao_conformidades.filter(
     (i) => i.gravidade === 'sanável'
+  ).length
+  const totalVerificar = resultado.nao_conformidades.filter(
+    (i) => i.requer_verificacao_manual
   ).length
 
   return (
@@ -144,6 +148,19 @@ export default async function HistoricoDetalhePage({
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Aviso anti-alucinação: itens sem base documental clara */}
+        {totalVerificar > 0 && (
+          <Alert className="mb-4 border-blue-200 bg-blue-50 text-blue-800">
+            <SearchCheck className="text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              {totalVerificar} apontamento{totalVerificar !== 1 ? 's' : ''} sem base documental
+              clara marcado{totalVerificar !== 1 ? 's' : ''} para{' '}
+              <span className="font-semibold">verificação manual</span>. Revise no documento
+              original antes de incluir no recurso.
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Não conformidades */}

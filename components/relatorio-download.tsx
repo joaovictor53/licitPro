@@ -30,6 +30,7 @@ const gerarTextoRelatorio = (resultado: ResultadoAnalise, nomeEdital?: string): 
     `Total de irregularidades encontradas: ${resultado.total_irregularidades}`,
     `  • Material (insanável): ${resultado.nao_conformidades.filter((i) => i.gravidade === 'material').length}`,
     `  • Sanável (diligência):  ${resultado.nao_conformidades.filter((i) => i.gravidade === 'sanável').length}`,
+    `  • Verificação manual:   ${resultado.nao_conformidades.filter((i) => i.requer_verificacao_manual).length} (sem base documental clara — confirmar antes de usar)`,
     '',
   ]
 
@@ -41,7 +42,14 @@ const gerarTextoRelatorio = (resultado: ResultadoAnalise, nomeEdital?: string): 
 
     resultado.nao_conformidades.forEach((item, idx) => {
       linhas.push(`${idx + 1}. ${item.titulo.toUpperCase()}`)
-      linhas.push(`   Gravidade    : ${item.gravidade === 'material' ? 'MATERIAL — Insanável' : 'SANÁVEL — Diligência'}`)
+      if (item.requer_verificacao_manual) {
+        linhas.push('   STATUS       : ⚠ VERIFICAÇÃO MANUAL NECESSÁRIA — sem base documental clara; confirme no documento original antes de usar.')
+      }
+      linhas.push(`   Gravidade    : ${item.gravidade === 'material' ? 'MATERIAL — Insanável' : 'SANÁVEL — Diligência'}${item.requer_verificacao_manual ? ' (sugerida — a confirmar)' : ''}`)
+      if (item.impacto_recurso) {
+        const rotuloImpacto = { alto: 'ALTO', medio: 'MÉDIO', baixo: 'BAIXO' }[item.impacto_recurso]
+        linhas.push(`   Impacto Recurso: ${rotuloImpacto}`)
+      }
       linhas.push(`   Item do Edital: ${item.item_edital}`)
       linhas.push('')
       linhas.push('   PROBLEMA:')
