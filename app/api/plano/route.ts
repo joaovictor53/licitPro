@@ -12,7 +12,8 @@ export async function GET() {
         session.user.id,
         session.user.plano,
         session.user.trialExpiresAt,
-        session.user.role
+        session.user.role,
+        session.user.emailVerified
     );
 
     return NextResponse.json(status);

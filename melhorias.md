@@ -81,7 +81,7 @@ O sistema já está em produção (`licitproanalyzer.com.br`), com autenticaçã
 ### 2.8. Benchmark interno de qualidade
 > **Prioridade:** `MÉDIO`
 
-* **Problema:** Não existe hoje um conjunto fixo 0de editais e propostas antigas usado para medir a precisão do sistema ao longo do tempo[cite: 1].
+* **Problema:** Não existe hoje um conjunto fixo de editais e propostas antigas usado para medir a precisão do sistema ao longo do tempo[cite: 1].
 * **Por que importa:** Sem isso, não é possível saber se uma mudança no sistema (prompt, modelo, versão) piorou ou melhorou a qualidade das análises[cite: 1].
 * **O que precisa ser feito:** Montar uma base de 10 a 15 casos reais já resolvidos (com resultado conhecido) para rodar como teste de regressão a cada atualização do sistema[cite: 1].
 

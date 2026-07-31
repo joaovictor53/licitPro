@@ -31,7 +31,13 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
     setCarregando(true)
 
     const { error } = ehCadastro
-      ? await authClient.signUp.email({ name: nome, email, password: senha })
+      ? await authClient.signUp.email({
+        name: nome,
+        email,
+        password: senha,
+        // Destino do link de confirmação enviado por e-mail
+        callbackURL: '/dashboard?verificado=1',
+      })
       : await authClient.signIn.email({ email, password: senha })
 
     setCarregando(false)
@@ -142,8 +148,15 @@ export const AuthForm = ({ modo }: AuthFormProps) => {
                   {mostrarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
               </div>
-              {ehCadastro && (
+              {ehCadastro ? (
                 <p className="text-xs text-slate-600 font-medium">Mínimo de 8 caracteres.</p>
+              ) : (
+                <a
+                  href="/esqueci-senha"
+                  className="text-xs text-slate-600 font-medium hover:text-primary hover:underline self-end"
+                >
+                  Esqueci minha senha
+                </a>
               )}
             </div>
 

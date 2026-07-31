@@ -16,7 +16,8 @@ export async function obterStatusPlano(
     userId: string,
     planoBruto: string | null | undefined,
     trialExpiresAt: Date | string | null | undefined,
-    role?: string | null
+    role?: string | null,
+    emailVerificado: boolean = true
 ): Promise<StatusPlano> {
     const plano: PlanoId = ehPlanoValido(planoBruto) ? planoBruto : PLANO_PADRAO;
     const config = PLANOS[plano];
@@ -33,10 +34,28 @@ export async function obterStatusPlano(
             motivo: null,
             ilimitado: true,
             trialExpiresAt: null,
+            emailVerificado,
         };
     }
 
     const trial = trialExpiresAt ? new Date(trialExpiresAt) : null;
+
+    // A análise do plano grátis exige e-mail confirmado — evita que o mesmo
+    // usuário crie contas descartáveis para consumir cotas gratuitas.
+    if (plano === 'gratis' && !emailVerificado) {
+        return {
+            plano,
+            nomePlano: config.nome,
+            limite,
+            usadas: 0,
+            restantes: 0,
+            permitido: false,
+            motivo: 'email_nao_verificado',
+            ilimitado: false,
+            trialExpiresAt: trial,
+            emailVerificado: false,
+        };
+    }
 
     if (plano === 'gratis' && trial && trial.getTime() < Date.now()) {
         return {
@@ -49,6 +68,7 @@ export async function obterStatusPlano(
             motivo: 'trial_expirado',
             ilimitado: false,
             trialExpiresAt: trial,
+            emailVerificado,
         };
     }
 
@@ -77,5 +97,6 @@ export async function obterStatusPlano(
         motivo: restantes > 0 ? null : 'limite_atingido',
         ilimitado: false,
         trialExpiresAt: plano === 'gratis' ? trial : null,
+        emailVerificado,
     };
 }

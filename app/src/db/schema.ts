@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid, integer, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, uuid, integer, bigint, jsonb, index } from 'drizzle-orm/pg-core';
 import type { NaoConformidade, ResultadoAnalise } from '@/types/analise-tipos';
 
 export const user = pgTable('user', {
@@ -46,6 +46,16 @@ export const account = pgTable('account', {
     password: text('password'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Contadores de rate limit do Better Auth. Persistidos no banco (e não em
+// memória) porque em serverless cada instância teria seu próprio contador,
+// o que permitiria estourar a cota de e-mails do Resend.
+export const rateLimit = pgTable('rate_limit', {
+    id: text('id').primaryKey(),
+    key: text('key').notNull().unique(),
+    count: integer('count').notNull(),
+    lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
 
 export const verification = pgTable('verification', {

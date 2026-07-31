@@ -567,12 +567,15 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
       session.user.id,
       session.user.plano,
       session.user.trialExpiresAt,
-      session.user.role
+      session.user.role,
+      session.user.emailVerified
     )
 
     if (!statusPlano.permitido) {
       const erro =
-        statusPlano.motivo === 'trial_expirado'
+        statusPlano.motivo === 'email_nao_verificado'
+          ? 'Confirme seu e-mail para liberar a análise gratuita. Verifique sua caixa de entrada.'
+          : statusPlano.motivo === 'trial_expirado'
           ? 'Seu período de teste expirou. Assine um plano para continuar usando o LicitPro Analyzer.'
           : statusPlano.plano === 'gratis'
             ? `Você já utilizou a análise do plano ${statusPlano.nomePlano}. Assine um plano para continuar.`

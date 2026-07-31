@@ -50,7 +50,9 @@ export interface StatusPlano {
     restantes: number;
     permitido: boolean;
     /** Motivo do bloqueio quando permitido === false */
-    motivo: 'trial_expirado' | 'limite_atingido' | null;
+    motivo: 'email_nao_verificado' | 'trial_expirado' | 'limite_atingido' | null;
+    /** E-mail confirmado — obrigatório para usar a análise do plano grátis */
+    emailVerificado: boolean;
     /** Admins não têm limite de análises */
     ilimitado: boolean;
     /** Fim do período de teste (apenas plano grátis) */

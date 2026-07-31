@@ -1,8 +1,9 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 // app/dashboard/page.tsx
-'use client'
+"use client";
 
-import { useCallback, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Scan,
   AlertTriangle,
@@ -18,148 +19,179 @@ import {
   Gem,
   UserCircle,
   SearchCheck,
-} from 'lucide-react'
-import type { StatusPlano } from '@/lib/planos'
-import Link from 'next/link'
-import { UploadCard } from '@/components/upload-card'
-import { ResultadoCard } from '@/components/resultado-card'
-import { TextoCopiavel } from '@/components/texto-copiavel'
-import { RelatorioDownload } from '@/components/relatorio-download'
-import { AvisoResponsabilidade } from '@/components/aviso-responsabilidade'
-import { ResultadoAnalise } from '@/types/analise-tipos'
-import { authClient, useSession } from '@/lib/auth-client'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Separator } from '@/components/ui/separator'
+  MailWarning,
+} from "lucide-react";
+import type { StatusPlano } from "@/lib/planos";
+import Link from "next/link";
+import { UploadCard } from "@/components/upload-card";
+import { ResultadoCard } from "@/components/resultado-card";
+import { TextoCopiavel } from "@/components/texto-copiavel";
+import { RelatorioDownload } from "@/components/relatorio-download";
+import { AvisoResponsabilidade } from "@/components/aviso-responsabilidade";
+import { AvisoEmailVerificado } from "@/components/aviso-email-verificado";
+import { ResultadoAnalise } from "@/types/analise-tipos";
+import { authClient, useSession } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 
-type Estado = 'inicial' | 'carregando' | 'resultado' | 'erro'
+type Estado = "inicial" | "carregando" | "resultado" | "erro";
 
 const MENSAGENS_CARREGAMENTO = [
-  'Lendo o edital...',
-  'Extraindo texto dos documentos...',
-  'Analisando requisitos de habilitação...',
-  'Cruzando exigências com a proposta...',
-  'Identificando não conformidades...',
-  'Gerando recurso administrativo...',
-  'Finalizando análise...',
-]
+  "Lendo o edital...",
+  "Extraindo texto dos documentos...",
+  "Analisando requisitos de habilitação...",
+  "Cruzando exigências com a proposta...",
+  "Identificando não conformidades...",
+  "Gerando recurso administrativo...",
+  "Finalizando análise...",
+];
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const { data: sessao, isPending } = useSession()
-  const [edital, setEdital] = useState<File | null>(null)
-  const [concorrente, setConcorrente] = useState<File | null>(null)
-  const [estado, setEstado] = useState<Estado>('inicial')
-  const [resultado, setResultado] = useState<ResultadoAnalise | null>(null)
-  const [erro, setErro] = useState<string>('')
-  const [msgCarregamento, setMsgCarregamento] = useState(MENSAGENS_CARREGAMENTO[0])
-  const [statusPlano, setStatusPlano] = useState<StatusPlano | null>(null)
+  const router = useRouter();
+  const { data: sessao, isPending } = useSession();
+  const [edital, setEdital] = useState<File | null>(null);
+  const [concorrente, setConcorrente] = useState<File | null>(null);
+  const [estado, setEstado] = useState<Estado>("inicial");
+  const [resultado, setResultado] = useState<ResultadoAnalise | null>(null);
+  const [erro, setErro] = useState<string>("");
+  const [msgCarregamento, setMsgCarregamento] = useState(
+    MENSAGENS_CARREGAMENTO[0],
+  );
+  const [statusPlano, setStatusPlano] = useState<StatusPlano | null>(null);
+  const [reenvio, setReenvio] = useState<
+    "inicial" | "enviando" | "enviado" | "erro"
+  >("inicial");
 
   // Proteção de rota: redireciona para login se não estiver autenticado
   useEffect(() => {
     if (!isPending && !sessao) {
-      router.push('/login')
+      router.push("/login");
     }
-  }, [sessao, isPending, router])
+  }, [sessao, isPending, router]);
 
   const carregarPlano = useCallback(async () => {
     try {
-      const resposta = await fetch('/api/plano')
-      if (resposta.ok) setStatusPlano(await resposta.json())
+      const resposta = await fetch("/api/plano");
+      if (resposta.ok) setStatusPlano(await resposta.json());
     } catch {
       // Sem status do plano, a UI apenas não mostra o contador — a API de análise ainda valida
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    if (sessao) carregarPlano()
-  }, [sessao, carregarPlano])
+    if (sessao) carregarPlano();
+  }, [sessao, carregarPlano]);
 
-  const podeAnalisar = edital !== null && concorrente !== null
+  const reenviarVerificacao = async () => {
+    if (!sessao) return;
+
+    setReenvio("enviando");
+    const { error } = await authClient.sendVerificationEmail({
+      email: sessao.user.email,
+      callbackURL: "/dashboard?verificado=1",
+    });
+    setReenvio(error ? "erro" : "enviado");
+  };
+
+  const podeAnalisar = edital !== null && concorrente !== null;
 
   const analisar = async () => {
-    if (!edital || !concorrente) return
+    if (!edital || !concorrente) return;
 
-    setEstado('carregando')
-    setErro('')
+    setEstado("carregando");
+    setErro("");
 
-    let idx = 0
+    let idx = 0;
     const intervalo = setInterval(() => {
-      idx = (idx + 1) % MENSAGENS_CARREGAMENTO.length
-      setMsgCarregamento(MENSAGENS_CARREGAMENTO[idx])
-    }, 4000)
+      idx = (idx + 1) % MENSAGENS_CARREGAMENTO.length;
+      setMsgCarregamento(MENSAGENS_CARREGAMENTO[idx]);
+    }, 4000);
 
     try {
-      const formData = new FormData()
-      formData.append('edital', edital)
-      formData.append('concorrente', concorrente)
-      formData.append('nomeEdital', edital.name)
-      formData.append('nomeProposta', concorrente.name)
+      const formData = new FormData();
+      formData.append("edital", edital);
+      formData.append("concorrente", concorrente);
+      formData.append("nomeEdital", edital.name);
+      formData.append("nomeProposta", concorrente.name);
 
-      const resposta = await fetch('/api/analisar', {
-        method: 'POST',
+      const resposta = await fetch("/api/analisar", {
+        method: "POST",
         body: formData,
-      })
+      });
 
-      const dados = await resposta.json()
+      const dados = await resposta.json();
 
       if (!resposta.ok) {
-        throw new Error(dados.erro || 'Erro ao processar os documentos.')
+        throw new Error(dados.erro || "Erro ao processar os documentos.");
       }
 
-      setResultado(dados)
-      setEstado('resultado')
-      carregarPlano()
+      setResultado(dados);
+      setEstado("resultado");
+      carregarPlano();
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro desconhecido.')
-      setEstado('erro')
+      setErro(err instanceof Error ? err.message : "Erro desconhecido.");
+      setEstado("erro");
     } finally {
-      clearInterval(intervalo)
+      clearInterval(intervalo);
     }
-  }
+  };
 
   const sair = async () => {
-    await authClient.signOut()
-    router.push('/login')
-    router.refresh()
-  }
+    await authClient.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   const reiniciar = () => {
-    setEdital(null)
-    setConcorrente(null)
-    setEstado('inicial')
-    setResultado(null)
-    setErro('')
-    setMsgCarregamento(MENSAGENS_CARREGAMENTO[0])
-  }
+    setEdital(null);
+    setConcorrente(null);
+    setEstado("inicial");
+    setResultado(null);
+    setErro("");
+    setMsgCarregamento(MENSAGENS_CARREGAMENTO[0]);
+  };
 
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-12 h-12 border-2 border-muted border-t-primary rounded-full animate-spin" />
       </div>
-    )
+    );
   }
 
   if (!sessao) {
-    return null
+    return null;
   }
 
-  const totalMaterial = resultado?.nao_conformidades.filter((i) => i.gravidade === 'material').length ?? 0
-  const totalSanavel = resultado?.nao_conformidades.filter((i) => i.gravidade === 'sanável').length ?? 0
-  const totalVerificar = resultado?.nao_conformidades.filter((i) => i.requer_verificacao_manual).length ?? 0
+  const totalMaterial =
+    resultado?.nao_conformidades.filter((i) => i.gravidade === "material")
+      .length ?? 0;
+  const totalSanavel =
+    resultado?.nao_conformidades.filter((i) => i.gravidade === "sanável")
+      .length ?? 0;
+  const totalVerificar =
+    resultado?.nao_conformidades.filter((i) => i.requer_verificacao_manual)
+      .length ?? 0;
 
-  const bloqueado = statusPlano !== null && !statusPlano.permitido
-  const trialExpiraEm = statusPlano?.trialExpiresAt ? new Date(statusPlano.trialExpiresAt) : null
+  const bloqueado = statusPlano !== null && !statusPlano.permitido;
+  const trialExpiraEm = statusPlano?.trialExpiresAt
+    ? new Date(statusPlano.trialExpiresAt)
+    : null;
   const diasRestantes = trialExpiraEm
-    ? Math.max(0, Math.ceil((trialExpiraEm.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
-    : null
+    ? Math.max(
+        0,
+        Math.ceil(
+          // eslint-disable-next-line react-hooks/purity
+          (trialExpiraEm.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+        ),
+      )
+    : null;
 
   return (
     <main className="min-h-screen bg-background py-10 px-4">
       <div className="max-w-2xl mx-auto">
-
         {/* Cabeçalho */}
         <div className="flex items-center justify-between gap-3 mb-1">
           <div className="flex items-center gap-3">
@@ -170,7 +202,9 @@ export default function DashboardPage() {
               <h1 className="text-xl font-bold tracking-tight">
                 LicitPro Analyzer
               </h1>
-              <p className="text-xs text-muted-foreground font-medium">Analisador de Inabilitação</p>
+              <p className="text-xs text-muted-foreground font-medium">
+                Analisador de Inabilitação
+              </p>
             </div>
           </div>
 
@@ -202,7 +236,7 @@ export default function DashboardPage() {
               <UserCircle />
               Perfil
             </Button>
-            {sessao.user.role === 'admin' && (
+            {sessao.user.role === "admin" && (
               <Button
                 variant="outline"
                 size="xs"
@@ -214,34 +248,70 @@ export default function DashboardPage() {
                 Admin
               </Button>
             )}
-            <span className="text-xs text-muted-foreground hidden sm:inline">{sessao.user.email}</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {sessao.user.email}
+            </span>
             <Button id="btn-sair" variant="outline" size="xs" onClick={sair}>
               <LogOut />
               Sair
             </Button>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground mb-8 pl-[52px]">
-          Carregue o edital e a proposta do concorrente — o sistema identifica as brechas e gera o recurso pronto para protocolo.
+        <p className="text-sm text-muted-foreground mb-8 pl-13">
+          Carregue o edital e a proposta do concorrente — o sistema identifica
+          as brechas e gera o recurso pronto para protocolo.
         </p>
 
         <Separator className="mb-8" />
 
+        <AvisoEmailVerificado />
+
         {/* Status do plano */}
-        {bloqueado && statusPlano ? (
+        {statusPlano?.motivo === "email_nao_verificado" ? (
+          <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-800">
+            <MailWarning className="text-amber-600" />
+            <AlertTitle>Confirme seu e-mail</AlertTitle>
+            <AlertDescription className="text-amber-800">
+              <p>
+                Enviamos um link de confirmação para{" "}
+                <span className="font-semibold">{sessao.user.email}</span>. A
+                análise gratuita é liberada assim que você confirmar o endereço.
+              </p>
+              {reenvio === "enviado" ? (
+                <p className="mt-2 font-medium">
+                  Link reenviado — confira sua caixa de entrada e o spam.
+                </p>
+              ) : (
+                <Button
+                  variant="link"
+                  size="xs"
+                  onClick={reenviarVerificacao}
+                  disabled={reenvio === "enviando"}
+                  className="mt-2 px-0 text-amber-800 underline"
+                >
+                  {reenvio === "enviando"
+                    ? "Reenviando..."
+                    : reenvio === "erro"
+                      ? "Falha ao reenviar — tentar novamente"
+                      : "Reenviar e-mail de confirmação"}
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        ) : bloqueado && statusPlano ? (
           <Alert variant="destructive" className="mb-6">
             <Clock />
             <AlertTitle>
-              {statusPlano.motivo === 'trial_expirado'
-                ? 'Período de teste encerrado'
-                : 'Limite de análises atingido'}
+              {statusPlano.motivo === "trial_expirado"
+                ? "Período de teste encerrado"
+                : "Limite de análises atingido"}
             </AlertTitle>
             <AlertDescription>
               <p>
-                {statusPlano.motivo === 'trial_expirado'
-                  ? 'Seu período de avaliação gratuita terminou. Assine um plano para continuar usando o LicitPro Analyzer.'
-                  : statusPlano.plano === 'gratis'
-                    ? 'Você já utilizou a análise gratuita. Assine um plano para continuar usando o LicitPro Analyzer.'
+                {statusPlano.motivo === "trial_expirado"
+                  ? "Seu período de avaliação gratuita terminou. Assine um plano para continuar usando o LicitPro Analyzer."
+                  : statusPlano.plano === "gratis"
+                    ? "Você já utilizou a análise gratuita. Assine um plano para continuar usando o LicitPro Analyzer."
                     : `Você utilizou as ${statusPlano.limite} análises mensais do plano ${statusPlano.nomePlano}. Faça upgrade para continuar.`}
               </p>
               <Button
@@ -259,7 +329,8 @@ export default function DashboardPage() {
           <Alert className="mb-6">
             <Gem className="text-primary" />
             <AlertDescription>
-              <span className="font-semibold">Administrador</span> — análises ilimitadas
+              <span className="font-semibold">Administrador</span> — análises
+              ilimitadas
             </AlertDescription>
           </Alert>
         ) : statusPlano ? (
@@ -268,23 +339,30 @@ export default function DashboardPage() {
             <AlertDescription>
               <span className="flex flex-wrap items-center gap-x-2">
                 <span>
-                  Plano <span className="font-semibold">{statusPlano.nomePlano}</span> —{' '}
+                  Plano{" "}
+                  <span className="font-semibold">{statusPlano.nomePlano}</span>{" "}
+                  —{" "}
                   <span className="font-semibold">
                     {statusPlano.restantes} de {statusPlano.limite}
-                  </span>{' '}
-                  análise{statusPlano.limite !== 1 ? 's' : ''}{' '}
-                  {statusPlano.plano === 'gratis' ? 'disponível' : 'restantes no mês'}
-                  {statusPlano.plano === 'gratis' && diasRestantes !== null && (
+                  </span>{" "}
+                  análise{statusPlano.limite !== 1 ? "s" : ""}{" "}
+                  {statusPlano.plano === "gratis"
+                    ? "disponível"
+                    : "restantes no mês"}
+                  {statusPlano.plano === "gratis" && diasRestantes !== null && (
                     <>
-                      {' '}
-                      · teste termina em{' '}
+                      {" "}
+                      · teste termina em{" "}
                       <span className="font-semibold">
-                        {diasRestantes} dia{diasRestantes !== 1 ? 's' : ''}
+                        {diasRestantes} dia{diasRestantes !== 1 ? "s" : ""}
                       </span>
                     </>
                   )}
                 </span>
-                <Link href="/planos" className="underline text-primary font-medium">
+                <Link
+                  href="/planos"
+                  className="underline text-primary font-medium"
+                >
                   Ver planos
                 </Link>
               </span>
@@ -293,7 +371,7 @@ export default function DashboardPage() {
         ) : null}
 
         {/* Upload */}
-        {estado !== 'resultado' && !bloqueado && (
+        {estado !== "resultado" && !bloqueado && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
               <UploadCard
@@ -314,7 +392,7 @@ export default function DashboardPage() {
               id="btn-iniciar-varredura"
               size="lg"
               onClick={analisar}
-              disabled={!podeAnalisar || estado === 'carregando'}
+              disabled={!podeAnalisar || estado === "carregando"}
               className="w-full mt-4 cursor-pointer"
               variant="outline"
             >
@@ -325,20 +403,21 @@ export default function DashboardPage() {
         )}
 
         {/* Carregando */}
-        {estado === 'carregando' && (
+        {estado === "carregando" && (
           <Card className="mb-6">
             <CardContent className="py-4 text-center">
               <div className="w-12 h-12 border-2 border-muted border-t-primary rounded-full animate-spin mx-auto mb-5" />
               <p className="font-semibold mb-1">{msgCarregamento}</p>
               <p className="text-sm text-muted-foreground">
-                Isso pode levar de 20 a 60 segundos dependendo do tamanho dos documentos
+                Isso pode levar de 20 a 60 segundos dependendo do tamanho dos
+                documentos
               </p>
             </CardContent>
           </Card>
         )}
 
         {/* Erro */}
-        {estado === 'erro' && (
+        {estado === "erro" && (
           <Alert variant="destructive" className="mb-6">
             <AlertTriangle />
             <AlertTitle>Erro na análise</AlertTitle>
@@ -358,12 +437,12 @@ export default function DashboardPage() {
         )}
 
         {/* Resultado */}
-        {estado === 'resultado' && resultado && (
+        {estado === "resultado" && resultado && (
           <>
             {/* Resumo */}
             <Card size="sm" className="mb-4">
               <CardContent className="flex gap-3">
-                <FileSearch className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                <FileSearch className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1">
                     Resumo da análise
@@ -378,14 +457,22 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <Card size="sm" className="bg-red-50 ring-red-200">
                   <CardContent className="text-center">
-                    <p className="text-2xl font-bold text-red-600">{totalMaterial}</p>
-                    <p className="text-xs text-red-500 font-medium mt-0.5">Material(is) — insanável(is)</p>
+                    <p className="text-2xl font-bold text-red-600">
+                      {totalMaterial}
+                    </p>
+                    <p className="text-xs text-red-500 font-medium mt-0.5">
+                      Material(is) — insanável(is)
+                    </p>
                   </CardContent>
                 </Card>
                 <Card size="sm" className="bg-amber-50 ring-amber-200">
                   <CardContent className="text-center">
-                    <p className="text-2xl font-bold text-amber-600">{totalSanavel}</p>
-                    <p className="text-xs text-amber-500 font-medium mt-0.5">Sanável(is)</p>
+                    <p className="text-2xl font-bold text-amber-600">
+                      {totalSanavel}
+                    </p>
+                    <p className="text-xs text-amber-500 font-medium mt-0.5">
+                      Sanável(is)
+                    </p>
                   </CardContent>
                 </Card>
               </div>
@@ -396,10 +483,11 @@ export default function DashboardPage() {
               <Alert className="mb-4 border-blue-200 bg-blue-50 text-blue-800">
                 <SearchCheck className="text-blue-600" />
                 <AlertDescription className="text-blue-800">
-                  {totalVerificar} apontamento{totalVerificar !== 1 ? 's' : ''} sem base documental
-                  clara marcado{totalVerificar !== 1 ? 's' : ''} para{' '}
-                  <span className="font-semibold">verificação manual</span>. Revise no documento
-                  original antes de incluir no recurso.
+                  {totalVerificar} apontamento{totalVerificar !== 1 ? "s" : ""}{" "}
+                  sem base documental clara marcado
+                  {totalVerificar !== 1 ? "s" : ""} para{" "}
+                  <span className="font-semibold">verificação manual</span>.
+                  Revise no documento original antes de incluir no recurso.
                 </AlertDescription>
               </Alert>
             )}
@@ -418,8 +506,9 @@ export default function DashboardPage() {
                   <AlertTriangle className="w-4 h-4 text-destructive" />
                   <span className="text-sm font-semibold">
                     {resultado.total_irregularidades} irregularidade
-                    {resultado.total_irregularidades !== 1 ? 's' : ''} encontrada
-                    {resultado.total_irregularidades !== 1 ? 's' : ''}
+                    {resultado.total_irregularidades !== 1 ? "s" : ""}{" "}
+                    encontrada
+                    {resultado.total_irregularidades !== 1 ? "s" : ""}
                   </span>
                 </div>
                 {resultado.nao_conformidades.map((item) => (
@@ -431,7 +520,10 @@ export default function DashboardPage() {
             {/* Relatório + Textos gerados */}
             <div className="space-y-4 mb-6">
               <AvisoResponsabilidade />
-              <RelatorioDownload resultado={resultado} nomeEdital={edital?.name} />
+              <RelatorioDownload
+                resultado={resultado}
+                nomeEdital={edital?.name}
+              />
               <TextoCopiavel
                 titulo="Recurso administrativo"
                 texto={resultado.recurso_administrativo}
@@ -445,14 +537,18 @@ export default function DashboardPage() {
             </div>
 
             {/* Botão nova análise */}
-            <Button id="btn-nova-analise" variant="outline" onClick={reiniciar} className="w-full">
+            <Button
+              id="btn-nova-analise"
+              variant="outline"
+              onClick={reiniciar}
+              className="w-full"
+            >
               <RefreshCw />
               Nova análise
             </Button>
           </>
         )}
-
       </div>
     </main>
-  )
+  );
 }

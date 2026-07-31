@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
 
-const PUBLIC_ROUTES = ['/', '/login', '/signup'];
+// Rotas acessíveis sem sessão. As de recuperação de senha precisam estar aqui
+// porque, por definição, o usuário chega nelas deslogado.
+const PUBLIC_ROUTES = [
+    '/',
+    '/login',
+    '/signup',
+    '/esqueci-senha',
+    '/redefinir-senha',
+    '/termos',
+];
 
 export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
