@@ -10,7 +10,9 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:test": "node scripts/testar-banco.mjs",
-    "db:migrar-dados": "node scripts/migrar-dados.mjs"
+    "db:migrar-dados": "node scripts/migrar-dados.mjs",
+    "db:seed-cnae": "node scripts/seed-cnae-por-objeto.mjs",
+    "cnae:atualizar-ibge": "node scripts/atualizar-cnae-ibge.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -20,6 +20,7 @@ import {
   UserCircle,
   SearchCheck,
   MailWarning,
+  Radar,
 } from "lucide-react";
 import type { StatusPlano } from "@/lib/planos";
 import Link from "next/link";
@@ -209,6 +210,15 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="xs"
+              nativeButton={false}
+              render={<Link href="/radar" />}
+            >
+              <Radar />
+              Radar
+            </Button>
             <Button
               variant="outline"
               size="xs"

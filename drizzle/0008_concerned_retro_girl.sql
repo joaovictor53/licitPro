@@ -1,0 +1,1 @@
+ALTER TABLE "cnae_por_objeto" ADD COLUMN "curado_manualmente" boolean DEFAULT true NOT NULL;

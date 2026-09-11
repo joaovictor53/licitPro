@@ -43,6 +43,27 @@
       "when": 1785526911389,
       "tag": "0005_needy_hobgoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788879133538,
+      "tag": "0006_petite_pete_wisdom",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788880772783,
+      "tag": "0007_pink_colossus",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789154209611,
+      "tag": "0008_concerned_retro_girl",
+      "breakpoints": true
     }
   ]
 }

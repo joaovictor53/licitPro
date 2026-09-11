@@ -9,6 +9,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/app/src'
 import { analise, analiseCache } from '@/app/src/db/schema'
 import { obterStatusPlano } from '@/lib/planos-server'
+import { obterOuCriarEmpresa } from '@/lib/empresa-server'
 import { processarPdfServidor } from '@/lib/processar-pdf-servidor'
 import { NaoConformidade, ResultadoAnalise } from '@/types/analise-tipos'
 
@@ -596,12 +597,13 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
       )
     }
 
-    // Dados cadastrais do usuário (recorrente), para auto-preencher o recurso e a
+    // Dados cadastrais da empresa (recorrente), para auto-preencher o recurso e a
     // mensagem ao pregoeiro em vez de deixar placeholders vazios.
+    const empresaDoUsuario = await obterOuCriarEmpresa(session.user.id)
     const dadosRecorrente = [
-      `Razão social: ${session.user.razaoSocial?.trim() || 'não informado'}`,
-      `CNPJ: ${session.user.cnpj?.trim() || 'não informado'}`,
-      `Endereço: ${session.user.endereco?.trim() || 'não informado'}`,
+      `Razão social: ${empresaDoUsuario?.razaoSocial?.trim() || 'não informado'}`,
+      `CNPJ: ${empresaDoUsuario?.cnpj?.trim() || 'não informado'}`,
+      `Endereço: ${empresaDoUsuario?.endereco?.trim() || 'não informado'}`,
     ].join('\n')
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
