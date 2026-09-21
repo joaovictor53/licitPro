@@ -1,7 +1,7 @@
 // app/api/analisar/route.ts
 
 import { createHash } from 'crypto'
-import Groq, { RateLimitError } from 'groq-sdk'
+import Groq from 'groq-sdk'
 import { eq } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
@@ -11,6 +11,16 @@ import { analise, analiseCache } from '@/app/src/db/schema'
 import { obterStatusPlano } from '@/lib/planos-server'
 import { obterOuCriarEmpresa } from '@/lib/empresa-server'
 import { processarPdfServidor } from '@/lib/processar-pdf-servidor'
+import {
+  MARCADOR_PAGINA,
+  chamarGroqComRetry,
+  dividirEmBlocosSequenciais,
+  evidenciaTemRespaldo,
+  executarComConcorrenciaLimitada,
+  ehPlaceholderSemCitacao,
+  extrairSecoesCriticas,
+  normalizarParaComparacao,
+} from '@/lib/texto-blocos'
 import { NaoConformidade, ResultadoAnalise } from '@/types/analise-tipos'
 
 const SYSTEM_PROMPT = `Você é um especialista em licitações públicas brasileiras com profundo conhecimento da Lei nº 14.133/2021 (Nova Lei de Licitações), da Lei nº 8.666/1993, da Lei Complementar nº 123/2006, e da jurisprudência do TCU.
@@ -152,8 +162,10 @@ RESPONDA APENAS com um objeto JSON válido, sem texto antes ou depois, sem markd
 const LIMITE_POR_DOCUMENTO = 3_500
 
 // Quantos blocos do concorrente são analisados em paralelo no pipeline map-reduce
-// (documentos grandes). Limitado para não estourar o RPM (requisições por minuto) da Groq.
-const CONCORRENCIA_MAX_BLOCOS = 3
+// (documentos grandes). O plano atual da Groq tem um orçamento baixo de tokens
+// por minuto (8.000 TPM) compartilhado entre todas as chamadas da conta, então
+// concorrência > 1 só aumenta a chance de 429 sem ganho real de throughput.
+const CONCORRENCIA_MAX_BLOCOS = 1
 
 // Palavras-chave que identificam seções críticas em editais de licitação
 const PALAVRAS_CHAVE_EDITAL = [
@@ -177,217 +189,6 @@ const PALAVRAS_CHAVE_EDITAL = [
   'diligência', 'saneamento',
 ]
 
-// Marcador de página inserido pela extração de PDF (ver lib/processar-pdf-servidor.ts)
-const MARCADOR_PAGINA = /\[\[PÁGINA (\d+)\]\]/
-
-interface BlocoComPagina {
-  texto: string
-  pagina: number | null
-  indice: number
-}
-
-/**
- * Divide o texto (já com marcadores [[PÁGINA N]] intercalados) em blocos por
- * parágrafo, mantendo junto de cada bloco a página de onde ele veio — para que
- * a citação de evidência enviada à IA possa referenciar a página exata do PDF.
- */
-const dividirEmBlocosComPagina = (texto: string): BlocoComPagina[] => {
-  const partes = texto.split(new RegExp(`(${MARCADOR_PAGINA.source})`))
-  const blocos: BlocoComPagina[] = []
-  let paginaAtual: number | null = null
-  let indice = 0
-
-  for (const parte of partes) {
-    const marcador = parte.match(MARCADOR_PAGINA)
-    if (marcador && marcador[0] === parte) {
-      paginaAtual = Number(marcador[1])
-      continue
-    }
-
-    const subBlocos = parte
-      .split(/\n\s*\n/)
-      .map(b => b.trim())
-      .filter(b => b.length > 30) // Ignorar blocos muito curtos (cabeçalhos soltos, rodapés)
-
-    for (const sub of subBlocos) {
-      blocos.push({ texto: sub, pagina: paginaAtual, indice: indice++ })
-    }
-  }
-
-  return blocos
-}
-
-const formatarBlocoComPagina = (bloco: BlocoComPagina): string =>
-  bloco.pagina !== null ? `[Página ${bloco.pagina}]\n${bloco.texto}` : bloco.texto
-
-/**
- * Extrai as seções mais relevantes de um texto de documento de licitação.
- * Divide o texto em blocos (por parágrafos / linhas em branco) preservando a
- * página de origem de cada um, pontua cada bloco pela presença de palavras-chave
- * relevantes e retorna os blocos mais importantes até o limite de caracteres,
- * prefixados com "[Página N]" para que a IA possa citar a página exata.
- */
-const extrairSecoesCriticas = (
-  texto: string,
-  palavrasChave: string[],
-  limite: number
-): string => {
-  const blocos = dividirEmBlocosComPagina(texto)
-
-  if (blocos.length === 0) return texto.replace(MARCADOR_PAGINA, '').slice(0, limite)
-
-  // Pontuar cada bloco
-  const blocosComPontuacao = blocos.map((bloco) => {
-    const textoLower = bloco.texto.toLowerCase()
-    let pontuacao = 0
-
-    for (const palavra of palavrasChave) {
-      if (textoLower.includes(palavra)) {
-        pontuacao += 1
-        // Bônus extra se a palavra aparece no início (provável título de seção)
-        if (textoLower.slice(0, 200).includes(palavra)) {
-          pontuacao += 2
-        }
-      }
-    }
-
-    // Blocos do início do documento recebem um bônus leve (dados gerais do edital/empresa)
-    if (bloco.indice < 3) pontuacao += 1
-
-    return { ...bloco, pontuacao }
-  })
-
-  // Ordenar por pontuação (maior primeiro)
-  const blocosOrdenados = [...blocosComPontuacao].sort((a, b) => b.pontuacao - a.pontuacao)
-
-  // Selecionar blocos até atingir o limite, mantendo a ordem original
-  const blocosSelecionados: BlocoComPagina[] = []
-  let totalCaracteres = 0
-
-  for (const item of blocosOrdenados) {
-    if (item.pontuacao === 0) continue // Ignorar blocos sem relevância alguma
-    const formatado = formatarBlocoComPagina(item)
-    if (totalCaracteres + formatado.length > limite) {
-      // Se ainda temos espaço, tentar encaixar um trecho do bloco
-      const espacoRestante = limite - totalCaracteres
-      if (espacoRestante > 200) {
-        blocosSelecionados.push({
-          ...item,
-          texto: item.texto.slice(0, espacoRestante) + '\n[...]',
-        })
-        totalCaracteres += espacoRestante
-      }
-      break
-    }
-    blocosSelecionados.push(item)
-    totalCaracteres += formatado.length
-  }
-
-  // Se nenhum bloco foi relevante, pegar o início do documento
-  if (blocosSelecionados.length === 0) {
-    return texto.replace(MARCADOR_PAGINA, '').slice(0, limite) + '\n\n[DOCUMENTO TRUNCADO]'
-  }
-
-  // Reordenar pela posição original para manter a coerência do texto
-  blocosSelecionados.sort((a, b) => a.indice - b.indice)
-
-  const resultado = blocosSelecionados.map(formatarBlocoComPagina).join('\n\n')
-
-  const omitidos = blocos.length - blocosSelecionados.length
-  if (omitidos > 0) {
-    return resultado + `\n\n[${omitidos} seções omitidas por limite de contexto — apenas seções relevantes para habilitação e conformidade foram mantidas]`
-  }
-
-  return resultado
-}
-
-/**
- * Divide o texto completo do concorrente em blocos sequenciais de até
- * `tamanhoMaximo` caracteres, SEM descartar conteúdo (ao contrário de
- * extrairSecoesCriticas) — cada bloco vira uma chamada separada à IA no
- * pipeline map-reduce, para que documentos grandes sejam analisados por
- * inteiro em vez de truncados. Repete o último bloco do grupo anterior no
- * início do próximo (pequena sobreposição) para não perder evidências que
- * caiam exatamente na fronteira entre dois grupos.
- */
-const dividirEmBlocosSequenciais = (texto: string, tamanhoMaximo: number): string[] => {
-  const blocos = dividirEmBlocosComPagina(texto)
-  if (blocos.length === 0) return [texto.replace(MARCADOR_PAGINA, '')]
-
-  const grupos: string[][] = []
-  let grupoAtual: string[] = []
-  let tamanhoAtual = 0
-
-  for (const bloco of blocos) {
-    const formatado = formatarBlocoComPagina(bloco)
-    if (tamanhoAtual + formatado.length > tamanhoMaximo && grupoAtual.length > 0) {
-      grupos.push(grupoAtual)
-      const ultimoBloco = grupoAtual[grupoAtual.length - 1]
-      grupoAtual = [ultimoBloco]
-      tamanhoAtual = ultimoBloco.length
-    }
-    grupoAtual.push(formatado)
-    tamanhoAtual += formatado.length
-  }
-  if (grupoAtual.length > 0) grupos.push(grupoAtual)
-
-  return grupos.map((grupo) => grupo.join('\n\n'))
-}
-
-/** Roda `fn` sobre `itens` com no máximo `limite` execuções simultâneas. */
-const executarComConcorrenciaLimitada = async <T, R>(
-  itens: T[],
-  limite: number,
-  fn: (item: T, indice: number) => Promise<R>
-): Promise<R[]> => {
-  const resultados: R[] = new Array(itens.length)
-  let proximo = 0
-
-  const trabalhadores = new Array(Math.min(limite, itens.length)).fill(null).map(async () => {
-    while (proximo < itens.length) {
-      const indiceAtual = proximo++
-      resultados[indiceAtual] = await fn(itens[indiceAtual], indiceAtual)
-    }
-  })
-
-  await Promise.all(trabalhadores)
-  return resultados
-}
-
-interface ParametrosChamadaGroq {
-  model: string
-  messages: Array<{ role: 'system' | 'user'; content: string }>
-  maxTokens: number
-}
-
-/** Chama a Groq com retentativa e backoff exponencial em caso de rate limit (429). */
-const chamarGroqComRetry = async (
-  groq: Groq,
-  params: ParametrosChamadaGroq,
-  tentativasMaximas = 3
-): Promise<string> => {
-  for (let tentativa = 1; tentativa <= tentativasMaximas; tentativa++) {
-    try {
-      const resposta = await groq.chat.completions.create({
-        model: params.model,
-        response_format: { type: 'json_object' },
-        max_tokens: params.maxTokens,
-        messages: params.messages,
-        stream: false,
-      })
-      return resposta.choices[0]?.message?.content ?? ''
-    } catch (erro) {
-      const ultimaTentativa = tentativa === tentativasMaximas
-      if (erro instanceof RateLimitError && !ultimaTentativa) {
-        await new Promise((resolve) => setTimeout(resolve, 2 ** tentativa * 1000))
-        continue
-      }
-      throw erro
-    }
-  }
-  throw new Error('Falha ao chamar a Groq após múltiplas tentativas.')
-}
-
 /** Remove não conformidades duplicadas (mesma cláusula do edital + título semelhante). */
 const deduplicarNaoConformidades = (itens: NaoConformidade[]): NaoConformidade[] => {
   const vistos = new Map<string, NaoConformidade>()
@@ -402,56 +203,6 @@ const deduplicarNaoConformidades = (itens: NaoConformidade[]): NaoConformidade[]
   }
 
   return Array.from(vistos.values()).map((item, indice) => ({ ...item, id: indice + 1 }))
-}
-
-// Textos de "evidência" que indicam ausência de documento (não são citações
-// literais e, portanto, não podem ser conferidos contra o texto do concorrente).
-const PLACEHOLDERS_SEM_CITACAO = [
-  'documento não apresentado',
-  'nao apresentado',
-  'não apresentado',
-  'documento ausente',
-  'não consta',
-  'nao consta',
-  'não localizado',
-  'ausente',
-]
-
-/**
- * Normaliza texto para comparação tolerante: remove acentos, marcadores de
- * página, pontuação e colapsa espaços. Usado para conferir se uma citação
- * literal realmente existe no documento do concorrente.
- */
-const normalizarParaComparacao = (texto: string): string =>
-  texto
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // remove acentos (marcas combinantes)
-    .replace(/\[\[?pagina \d+\]?\]/gi, ' ') // remove marcadores de página (acento já retirado acima)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-
-/**
- * Verifica se a evidência literal citada pela IA tem respaldo no texto do
- * concorrente. Casa o trecho inteiro ou janelas de ~6 palavras (início, meio,
- * fim) para tolerar pequenas diferenças de OCR e cortes na transcrição.
- */
-const evidenciaTemRespaldo = (evidencia: string, textoNormalizado: string): boolean => {
-  const alvo = normalizarParaComparacao(evidencia)
-  if (alvo.length < 12) return false // curto demais para conferir com segurança
-  if (textoNormalizado.includes(alvo)) return true
-
-  const palavras = alvo.split(' ').filter(Boolean)
-  const janela = Math.min(6, palavras.length)
-  if (janela < 4) return false
-
-  const posicoes = [0, Math.floor((palavras.length - janela) / 2), palavras.length - janela]
-  for (const pos of posicoes) {
-    if (pos < 0) continue
-    const trecho = palavras.slice(pos, pos + janela).join(' ')
-    if (trecho.length >= 12 && textoNormalizado.includes(trecho)) return true
-  }
-  return false
 }
 
 /**
@@ -471,9 +222,7 @@ const aplicarVerificacaoDocumental = (
     let confianca: 'alta' | 'media' | 'baixa' = item.confianca ?? 'media'
 
     const evidencia = (item.evidencia ?? '').trim()
-    const evidenciaNorm = normalizarParaComparacao(evidencia)
-    const ehAusencia =
-      evidencia === '' || PLACEHOLDERS_SEM_CITACAO.some((p) => evidenciaNorm.includes(normalizarParaComparacao(p)))
+    const ehAusencia = ehPlaceholderSemCitacao(evidencia)
 
     // Citação literal que não aparece no documento = sem base documental.
     if (!ehAusencia && !evidenciaTemRespaldo(evidencia, textoNormalizado)) {
@@ -533,7 +282,7 @@ const sintetizarResultado = async (
   ].join('\n')
 
   const rawTextSintese = await chamarGroqComRetry(groq, {
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     maxTokens: 2048,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT_SINTESE },
@@ -693,7 +442,7 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
         ].join('\n')
 
         const rawText = await chamarGroqComRetry(groq, {
-          model: 'llama-3.3-70b-versatile',
+          model: 'openai/gpt-oss-120b',
           maxTokens: 2048,
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
@@ -726,7 +475,7 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
             ].join('\n')
 
             const rawText = await chamarGroqComRetry(groq, {
-              model: 'llama-3.3-70b-versatile',
+              model: 'openai/gpt-oss-120b',
               maxTokens: 1536,
               messages: [
                 { role: 'system', content: SYSTEM_PROMPT_MAPA },

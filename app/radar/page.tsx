@@ -165,6 +165,10 @@ export default function RadarPage() {
     setProcessandoId(null)
 
     if (resposta.ok) {
+      if (acao === 'analisar') {
+        router.push(`/participacoes/${id}/recurso`)
+        return
+      }
       setParticipacoes((atual) => atual.filter((p) => p.id !== id))
       setNovosIds((atual) => {
         const proximo = new Set(atual)

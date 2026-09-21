@@ -3,9 +3,9 @@
 // antes desta fase tinham razão social/CNPJ/endereço direto em `user` — a
 // primeira leitura aqui copia esses dados uma única vez para `empresa`.
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/app/src';
-import { empresa, user } from '@/app/src/db/schema';
+import { empresa, participacao, user } from '@/app/src/db/schema';
 
 export async function obterOuCriarEmpresa(userId: string) {
     const [existente] = await db
@@ -47,4 +47,18 @@ export async function obterOuCriarEmpresa(userId: string) {
         .limit(1);
 
     return existenteAgora;
+}
+
+/** Busca uma participação garantindo que pertence à empresa do usuário logado — usado por toda rota aninhada em /api/participacoes/[id]/*. */
+export async function obterParticipacaoDaEmpresa(userId: string, participacaoId: string) {
+    const empresaAtual = await obterOuCriarEmpresa(userId);
+    if (!empresaAtual) return { empresaAtual: null, participacaoAtual: null };
+
+    const [participacaoAtual] = await db
+        .select()
+        .from(participacao)
+        .where(and(eq(participacao.id, participacaoId), eq(participacao.empresaId, empresaAtual.id)))
+        .limit(1);
+
+    return { empresaAtual, participacaoAtual: participacaoAtual ?? null };
 }
