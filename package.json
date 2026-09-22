@@ -12,6 +12,7 @@
     "db:test": "node scripts/testar-banco.mjs",
     "db:migrar-dados": "node scripts/migrar-dados.mjs",
     "db:seed-cnae": "node scripts/seed-cnae-por-objeto.mjs",
+    "db:seed-plataformas": "node scripts/seed-plataformas.mjs",
     "cnae:atualizar-ibge": "node scripts/atualizar-cnae-ibge.mjs"
   },
   "dependencies": {

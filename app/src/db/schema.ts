@@ -9,6 +9,7 @@ import { FORMAS_GARANTIA, type ResultadoViabilidade } from '@/types/viabilidade-
 import { DECISOES_PARTICIPACAO, MOTIVOS_NAO_PARTICIPAR, STATUS_APROVACAO_EMPRESA, type AlertaDecisao, type NumerosCongeladosDecisao } from '@/types/decisao-tipos';
 import { type ItemPrecoSnapshot, type TotaisPlanilhaPrecos } from '@/types/preco-tipos';
 import { type PecaMontagem, type ChecagemFinalProposta } from '@/types/proposta-tipos';
+import { METODOS_EXIGENCIA_ASSINATURA, METODOS_ASSINATURA_USADOS, STATUS_ASSINATURA_PECA, STATUS_APROVACAO_PROPOSTA } from '@/types/assinatura-tipos';
 
 export const user = pgTable('user', {
     id: text('id').primaryKey(),
@@ -683,3 +684,88 @@ export const versaoProposta = pgTable('versao_proposta', {
     index('versao_proposta_participacao_id_idx').on(t.participacaoId),
     uniqueIndex('versao_proposta_participacao_versao_unique').on(t.participacaoId, t.versao),
 ]);
+
+// ── Ferramenta 9, Aprovação e Assinatura ───────────────────────────────────
+
+export const statusAprovacaoPropostaEnum = pgEnum('status_aprovacao_proposta', STATUS_APROVACAO_PROPOSTA);
+export const metodoExigenciaAssinaturaEnum = pgEnum('metodo_exigencia_assinatura', METODOS_EXIGENCIA_ASSINATURA);
+export const metodoAssinaturaUsadoEnum = pgEnum('metodo_assinatura_usado', METODOS_ASSINATURA_USADOS);
+export const statusAssinaturaPecaEnum = pgEnum('status_assinatura_peca', STATUS_ASSINATURA_PECA);
+
+// Aprovação comercial é decisão separada da assinatura formal (podem ser a
+// mesma pessoa, mas são registros diferentes — Regras da Ferramenta 9). Sem
+// `can_approve_proposals` no sistema ainda (não há papéis/permissões
+// granulares) — qualquer usuário da empresa pode registrar por enquanto,
+// documentado como limitação, não escondido.
+export const aprovacaoProposta = pgTable('aprovacao_proposta', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+    versaoPropostaId: uuid('versao_proposta_id')
+        .notNull()
+        .references(() => versaoProposta.id),
+
+    status: statusAprovacaoPropostaEnum('status').notNull().default('aguardando'),
+    observacao: text('observacao'),
+    motivoRecusa: text('motivo_recusa'),
+
+    decididoPorUserId: text('decidido_por_user_id').references(() => user.id),
+    decididoEm: timestamp('decidido_em', { withTimezone: true }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Uma linha por peça da lista de montagem (Ferramenta 8). O método exigido
+// nasce de uma classificação padrão por tipo de peça (proposta/planilha
+// exigem assinatura do representante legal; documentos do dossiê não
+// exigem, por enquanto — ver lib/classificacao-assinatura.ts) e pode ser
+// sobrescrito, porque "o edital sempre prevalece" e a Ferramenta 3 ainda não
+// captura o método de assinatura por exigência.
+export const assinaturaPeca = pgTable('assinatura_peca', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+    peca: text('peca').notNull(),
+
+    metodoExigido: metodoExigenciaAssinaturaEnum('metodo_exigido').notNull().default('nao_requer'),
+    metodoExigidoSobrescritoPorUserId: text('metodo_exigido_sobrescrito_por_user_id').references(() => user.id),
+
+    status: statusAssinaturaPecaEnum('status').notNull().default('pendente'),
+    assinadoPorNome: text('assinado_por_nome'),
+    assinadoEm: timestamp('assinado_em', { withTimezone: true }),
+    metodoUsado: metodoAssinaturaUsadoEnum('metodo_usado'),
+    linkValidacao: text('link_validacao'),
+    arquivoAssinadoNome: text('arquivo_assinado_nome'),
+    arquivoAssinadoBase64: text('arquivo_assinado_base64'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+    index('assinatura_peca_participacao_id_idx').on(t.participacaoId),
+    uniqueIndex('assinatura_peca_participacao_peca_unique').on(t.participacaoId, t.peca),
+]);
+
+// ── Ferramenta 11, Preparação do Arquivo para Upload ───────────────────────
+
+// Mantida pela Arumã (tarefa de verificação prévia listada nos Anexos do
+// doc do produto) — começa só com o que o próprio doc já registra como
+// fato público; plataformas sem limite confirmado ficam com os campos nulos
+// e a observação avisando, em vez de inventar um número.
+export const plataformaCompra = pgTable('plataforma_compra', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    nome: text('nome').notNull().unique(),
+    tamanhoMaximoMb: integer('tamanho_maximo_mb'),
+    formatosAceitos: text('formatos_aceitos').array().notNull().default([]),
+    aceitaZip: boolean('aceita_zip'),
+    exigeArquivoSeparado: boolean('exige_arquivo_separado').notNull().default(true),
+    regrasNomenclatura: text('regras_nomenclatura'),
+    resolucaoMinima: text('resolucao_minima'),
+    observacoes: text('observacoes'),
+    ultimaConferenciaEm: timestamp('ultima_conferencia_em', { withTimezone: true }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});

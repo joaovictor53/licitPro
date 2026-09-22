@@ -129,6 +129,9 @@ export default function PropostaPage() {
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/precos`} />}>
               Composição de Preço
             </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/aprovacao`} />}>
+              Aprovação e Assinatura
+            </Button>
           </div>
         </div>
 
