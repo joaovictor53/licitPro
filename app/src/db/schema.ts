@@ -6,6 +6,7 @@ import { TIPOS_EXIGENCIA, SITUACOES_EXIGENCIA, RISCOS_EXIGENCIA, CONFIANCAS_LEIT
 import { ORIGENS_RECURSO, INSTRUMENTOS_RECURSO, SITUACOES_RECURSO, SEMAFOROS_RECURSO, type DotacaoOrcamentaria, type FatorSemaforo } from '@/types/recurso-tipos';
 import { TIPOS_DOCUMENTO_DOSSIE, SITUACOES_CHECKLIST, STATUS_ACESSORIA, type DadosBalancoPatrimonial } from '@/types/documento-tipos';
 import { FORMAS_GARANTIA, type ResultadoViabilidade } from '@/types/viabilidade-tipos';
+import { DECISOES_PARTICIPACAO, MOTIVOS_NAO_PARTICIPAR, STATUS_APROVACAO_EMPRESA, type AlertaDecisao, type NumerosCongeladosDecisao } from '@/types/decisao-tipos';
 
 export const user = pgTable('user', {
     id: text('id').primaryKey(),
@@ -554,6 +555,48 @@ export const viabilidadeParticipacao = pgTable('viabilidade_participacao', {
     cienciaEstouroEm: timestamp('ciencia_estouro_em', { withTimezone: true }),
 
     atualizadoPorUserId: text('atualizado_por_user_id').references(() => user.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ── Ferramenta 5, Decisão de Participar ─────────────────────────────────────
+
+export const decisaoParticipacaoTipoEnum = pgEnum('decisao_participacao_tipo', DECISOES_PARTICIPACAO);
+export const motivoNaoParticiparEnum = pgEnum('motivo_nao_participar', MOTIVOS_NAO_PARTICIPAR);
+export const statusAprovacaoEmpresaEnum = pgEnum('status_aprovacao_empresa', STATUS_APROVACAO_EMPRESA);
+
+// Não é tela de preenchimento — só reúne o que as Ferramentas 1 a 4 já
+// produziram e registra a decisão. "Os números da decisão ficam
+// congelados no registro": `numerosCongelados` e `alertasAtivos` guardam o
+// que estava na tela no exato momento, para reconstituir o que se sabia
+// naquele dia (Regras da Ferramenta 5).
+export const decisaoParticipacao = pgTable('decisao_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    decisao: decisaoParticipacaoTipoEnum('decisao').notNull(),
+    motivoNaoParticipar: motivoNaoParticiparEnum('motivo_nao_participar'),
+    motivoOutro: text('motivo_outro'),
+    dataRetomadaEm: timestamp('data_retomada_em', { withTimezone: true }),
+
+    alertasAtivos: jsonb('alertas_ativos').$type<AlertaDecisao[]>().notNull().default([]),
+    cienciaAlertaConfirmada: boolean('ciencia_alerta_confirmada').notNull().default(false),
+    numerosCongelados: jsonb('numeros_congelados').$type<NumerosCongeladosDecisao>().notNull(),
+
+    // Sem portal do cliente no sistema (mesma limitação já documentada na
+    // Preparação Documental) — a aprovação é registrada manualmente pelo
+    // operador a partir do que a empresa respondeu por fora do sistema.
+    aprovacaoStatus: statusAprovacaoEmpresaEnum('aprovacao_status').notNull().default('nao_enviada'),
+    aprovacaoObservacao: text('aprovacao_observacao'),
+    aprovacaoRegistradaPorUserId: text('aprovacao_registrada_por_user_id').references(() => user.id),
+    aprovacaoRegistradaEm: timestamp('aprovacao_registrada_em', { withTimezone: true }),
+
+    decididoPorUserId: text('decidido_por_user_id').notNull().references(() => user.id),
+    decididoEm: timestamp('decidido_em', { withTimezone: true }).notNull().defaultNow(),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });

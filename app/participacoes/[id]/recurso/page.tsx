@@ -263,6 +263,9 @@ export default function FichaRecursoPage() {
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/viabilidade`} />}>
               Viabilidade
             </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/decisao`} />}>
+              Decisão
+            </Button>
             <Button variant="outline" size="xs" onClick={() => window.print()}>
               <Printer />
               Relatório

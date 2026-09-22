@@ -252,6 +252,9 @@ export default function DocumentosPage() {
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/viabilidade`} />}>
               Viabilidade
             </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/decisao`} />}>
+              Decisão
+            </Button>
           </div>
         </div>
 
