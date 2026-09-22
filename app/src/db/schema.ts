@@ -7,6 +7,8 @@ import { ORIGENS_RECURSO, INSTRUMENTOS_RECURSO, SITUACOES_RECURSO, SEMAFOROS_REC
 import { TIPOS_DOCUMENTO_DOSSIE, SITUACOES_CHECKLIST, STATUS_ACESSORIA, type DadosBalancoPatrimonial } from '@/types/documento-tipos';
 import { FORMAS_GARANTIA, type ResultadoViabilidade } from '@/types/viabilidade-tipos';
 import { DECISOES_PARTICIPACAO, MOTIVOS_NAO_PARTICIPAR, STATUS_APROVACAO_EMPRESA, type AlertaDecisao, type NumerosCongeladosDecisao } from '@/types/decisao-tipos';
+import { type ItemPrecoSnapshot, type TotaisPlanilhaPrecos } from '@/types/preco-tipos';
+import { type PecaMontagem, type ChecagemFinalProposta } from '@/types/proposta-tipos';
 
 export const user = pgTable('user', {
     id: text('id').primaryKey(),
@@ -600,3 +602,84 @@ export const decisaoParticipacao = pgTable('decisao_participacao', {
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
+
+// ── Ferramenta 7, Composição de Preço ──────────────────────────────────────
+
+// Uma linha por item/lote — cadastrado pelo operador (ver nota de escopo em
+// types/preco-tipos.ts). "O preço é digitado aqui, o custo vem da
+// viabilidade": custo/piso/alvo nascem do que a Ferramenta 4 calculou, mas
+// ficam editáveis por item porque a viabilidade hoje só calcula um agregado.
+export const itemPrecoParticipacao = pgTable('item_preco_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    ordem: integer('ordem').notNull().default(0),
+    descricao: text('descricao').notNull(),
+    unidade: text('unidade'),
+    quantidade: numeric('quantidade', { precision: 14, scale: 4 }).notNull().default('1'),
+    marcaModelo: text('marca_modelo'),
+
+    custoUnitario: numeric('custo_unitario', { precision: 14, scale: 4 }),
+    pisoUnitario: numeric('piso_unitario', { precision: 14, scale: 4 }),
+    alvoUnitario: numeric('alvo_unitario', { precision: 14, scale: 4 }),
+    tetoUnitario: numeric('teto_unitario', { precision: 14, scale: 4 }),
+    precoOfertado: numeric('preco_ofertado', { precision: 14, scale: 4 }),
+
+    precoDefinidoPorUserId: text('preco_definido_por_user_id').references(() => user.id),
+    precoDefinidoEm: timestamp('preco_definido_em', { withTimezone: true }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+    index('item_preco_participacao_participacao_id_idx').on(t.participacaoId),
+]);
+
+// Toda geração cria versão (proposta aprovada não é alterada). Não existe
+// storage de blob no projeto — o arquivo gerado é um XLSX pequeno, então
+// fica guardado em base64 direto no banco em vez de subir infraestrutura
+// nova só para isto.
+export const versaoPlanilhaPrecos = pgTable('versao_planilha_precos', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    versao: integer('versao').notNull(),
+    arquivoNome: text('arquivo_nome').notNull(),
+    arquivoBase64: text('arquivo_base64').notNull(),
+    usouModeloEdital: boolean('usou_modelo_edital').notNull().default(false),
+    snapshotItens: jsonb('snapshot_itens').$type<ItemPrecoSnapshot[]>().notNull(),
+    totais: jsonb('totais').$type<TotaisPlanilhaPrecos>().notNull(),
+
+    geradoPorUserId: text('gerado_por_user_id').notNull().references(() => user.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+    index('versao_planilha_precos_participacao_id_idx').on(t.participacaoId),
+    uniqueIndex('versao_planilha_precos_participacao_versao_unique').on(t.participacaoId, t.versao),
+]);
+
+// ── Ferramenta 8, Montagem da Proposta ─────────────────────────────────────
+
+// Toda geração cria versão; versão aprovada não é alterada. Mesmo raciocínio
+// de armazenamento da planilha de preços: PDF pequeno guardado em base64.
+export const versaoProposta = pgTable('versao_proposta', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    versao: integer('versao').notNull(),
+    arquivoNome: text('arquivo_nome').notNull(),
+    arquivoBase64: text('arquivo_base64').notNull(),
+    pecas: jsonb('pecas').$type<PecaMontagem[]>().notNull(),
+    checagem: jsonb('checagem').$type<ChecagemFinalProposta>().notNull(),
+    aprovada: boolean('aprovada').notNull().default(false),
+
+    geradoPorUserId: text('gerado_por_user_id').notNull().references(() => user.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+    index('versao_proposta_participacao_id_idx').on(t.participacaoId),
+    uniqueIndex('versao_proposta_participacao_versao_unique').on(t.participacaoId, t.versao),
+]);

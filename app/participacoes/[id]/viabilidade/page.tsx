@@ -268,6 +268,12 @@ export default function ViabilidadePage() {
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/decisao`} />}>
               Decisão
             </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/precos`} />}>
+              Preços
+            </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/proposta`} />}>
+              Proposta
+            </Button>
           </div>
         </div>
 

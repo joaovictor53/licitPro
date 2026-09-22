@@ -200,6 +200,8 @@ export default function DecisaoPage() {
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}`} />}><FileText />Edital</Button>
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/documentos`} />}><FileStack />Documentos</Button>
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/viabilidade`} />}><Calculator />Viabilidade</Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/precos`} />}>Preços</Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/proposta`} />}>Proposta</Button>
           </div>
         </div>
 
