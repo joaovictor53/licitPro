@@ -10,6 +10,7 @@ import { DECISOES_PARTICIPACAO, MOTIVOS_NAO_PARTICIPAR, STATUS_APROVACAO_EMPRESA
 import { type ItemPrecoSnapshot, type TotaisPlanilhaPrecos } from '@/types/preco-tipos';
 import { type PecaMontagem, type ChecagemFinalProposta } from '@/types/proposta-tipos';
 import { METODOS_EXIGENCIA_ASSINATURA, METODOS_ASSINATURA_USADOS, STATUS_ASSINATURA_PECA, STATUS_APROVACAO_PROPOSTA } from '@/types/assinatura-tipos';
+import { SITUACOES_RESULTADO_SESSAO } from '@/types/sessao-tipos';
 
 export const user = pgTable('user', {
     id: text('id').primaryKey(),
@@ -769,3 +770,84 @@ export const plataformaCompra = pgTable('plataforma_compra', {
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
+
+// ── Ferramenta 10, Envio ───────────────────────────────────────────────────
+
+// O sistema nunca envia sozinho — só confere e registra o que o operador fez
+// manualmente no portal, com a credencial da empresa (Regras da Ferramenta 10).
+export const envioParticipacao = pgTable('envio_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    prazoFinalEnvioEm: timestamp('prazo_final_envio_em', { withTimezone: true }),
+
+    dataHoraEnvioEm: timestamp('data_hora_envio_em', { withTimezone: true }),
+    numeroProtocolo: text('numero_protocolo'),
+    comprovanteTexto: text('comprovante_texto'),
+    comprovanteArquivoNome: text('comprovante_arquivo_nome'),
+    comprovanteArquivoBase64: text('comprovante_arquivo_base64'),
+    enviadoPorUserId: text('enviado_por_user_id').references(() => user.id),
+    observacao: text('observacao'),
+
+    naoEnviadaMotivo: text('nao_enviada_motivo'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ── Ferramenta 12, Registro da Sessão ───────────────────────────────────────
+
+export const situacaoResultadoSessaoEnum = pgEnum('situacao_resultado_sessao', SITUACOES_RESULTADO_SESSAO);
+
+// Só registro pós-fato — nunca acompanhamento ao vivo (Regra Geral 1). Uma
+// linha por participação; convocação de anexo é um bloco à parte porque
+// entra na central de alertas com criticidade máxima e prazo próprio.
+export const registroSessao = pgTable('registro_sessao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    horarioAberturaEm: timestamp('horario_abertura_em', { withTimezone: true }),
+    horarioEncerramentoEm: timestamp('horario_encerramento_em', { withTimezone: true }),
+    quantidadeParticipantes: integer('quantidade_participantes'),
+    lanceFinalEmpresa: numeric('lance_final_empresa', { precision: 14, scale: 2 }),
+    menorLanceDisputa: numeric('menor_lance_disputa', { precision: 14, scale: 2 }),
+    classificacaoObtida: text('classificacao_obtida'),
+    houveNegociacao: boolean('houve_negociacao').notNull().default(false),
+    valorNegociado: numeric('valor_negociado', { precision: 14, scale: 2 }),
+    valorVencedor: numeric('valor_vencedor', { precision: 14, scale: 2 }),
+    ocorrencias: text('ocorrencias'),
+    anotacaoLivre: text('anotacao_livre'),
+
+    resultadoSituacao: situacaoResultadoSessaoEnum('resultado_situacao'),
+    resultadoMotivo: text('resultado_motivo'),
+
+    registradoPorUserId: text('registrado_por_user_id').references(() => user.id),
+    registradoEm: timestamp('registrado_em', { withTimezone: true }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Convocação de anexo pós-sessão — criticidade máxima, prazo curto.
+export const convocacaoAnexoSessao = pgTable('convocacao_anexo_sessao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    dataHoraConvocacaoEm: timestamp('data_hora_convocacao_em', { withTimezone: true }).notNull(),
+    prazoLimiteEm: timestamp('prazo_limite_em', { withTimezone: true }).notNull(),
+    oQueFoiSolicitado: text('o_que_foi_solicitado').notNull(),
+    atendidoEm: timestamp('atendido_em', { withTimezone: true }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+    index('convocacao_anexo_sessao_participacao_id_idx').on(t.participacaoId),
+]);

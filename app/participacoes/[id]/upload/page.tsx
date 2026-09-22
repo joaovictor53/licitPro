@@ -125,6 +125,9 @@ export default function UploadPage() {
           <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/aprovacao`} />}>
             Aprovação e Assinatura
           </Button>
+          <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/envio`} />}>
+            Envio
+          </Button>
         </div>
 
         <Card>

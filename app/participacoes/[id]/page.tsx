@@ -210,6 +210,12 @@ export default function ParticipacaoPage() {
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/upload`} />}>
               Upload
             </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/envio`} />}>
+              Envio
+            </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/sessao`} />}>
+              Sessão
+            </Button>
           </div>
         </div>
 
