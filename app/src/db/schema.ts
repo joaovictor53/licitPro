@@ -13,6 +13,7 @@ import { METODOS_EXIGENCIA_ASSINATURA, METODOS_ASSINATURA_USADOS, STATUS_ASSINAT
 import { SITUACOES_RESULTADO_SESSAO } from '@/types/sessao-tipos';
 import { RESULTADOS_HABILITACAO } from '@/types/habilitacao-tipos';
 import { ESTADOS_RECURSO_FASE, RESULTADOS_DECISAO_RECURSAL } from '@/types/recurso-fase-tipos';
+import { RESULTADOS_DESFECHO, TIPOS_CONTRATO } from '@/types/resultado-tipos';
 
 export const user = pgTable('user', {
     id: text('id').primaryKey(),
@@ -1000,4 +1001,136 @@ export const recursoTerceiroParticipacao = pgTable('recurso_terceiro_participaca
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [
     index('recurso_terceiro_participacao_participacao_id_idx').on(t.participacaoId),
+]);
+
+// ── Ferramenta 15, Resultado e Contrato ────────────────────────────────────
+
+export const resultadoDesfechoEnum = pgEnum('resultado_desfecho', RESULTADOS_DESFECHO);
+export const tipoContratoEnum = pgEnum('tipo_contrato', TIPOS_CONTRATO);
+
+// "Perdeu não ensina nada" — motivoEstruturado é sempre exigido, qualquer
+// que seja o resultado.
+export const resultadoParticipacao = pgTable('resultado_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    resultado: resultadoDesfechoEnum('resultado').notNull(),
+    motivoEstruturado: text('motivo_estruturado').notNull(),
+    valorVencedorGlobal: numeric('valor_vencedor_global', { precision: 14, scale: 2 }),
+    diferencaParaVencedorAbsoluta: numeric('diferenca_para_vencedor_absoluta', { precision: 14, scale: 2 }),
+    diferencaParaVencedorPercentual: numeric('diferenca_para_vencedor_percentual', { precision: 6, scale: 2 }),
+    dataResultadoEm: timestamp('data_resultado_em', { withTimezone: true }).notNull(),
+
+    adjudicacaoDataEm: timestamp('adjudicacao_data_em', { withTimezone: true }),
+    adjudicacaoQuem: text('adjudicacao_quem'),
+    homologacaoDataEm: timestamp('homologacao_data_em', { withTimezone: true }),
+    homologacaoPublicacao: text('homologacao_publicacao'),
+
+    registradoPorUserId: text('registrado_por_user_id').references(() => user.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Documentos revalidados na data da ASSINATURA (igual à Ferramenta 13, mas
+// contra outro marco) — a revalidação reaproveita a mesma função pura,
+// passando a data de assinatura como marco em vez de null (hoje).
+export const contratoParticipacao = pgTable('contrato_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    tipo: tipoContratoEnum('tipo').notNull(),
+    numero: text('numero').notNull(),
+    dataAssinaturaEm: timestamp('data_assinatura_em', { withTimezone: true }),
+    vigenciaInicioEm: timestamp('vigencia_inicio_em', { withTimezone: true }),
+    vigenciaFimEm: timestamp('vigencia_fim_em', { withTimezone: true }),
+    valorContratado: numeric('valor_contratado', { precision: 14, scale: 2 }),
+    objetoContratado: text('objeto_contratado'),
+    arquivoAssinadoNome: text('arquivo_assinado_nome'),
+    arquivoAssinadoBase64: text('arquivo_assinado_base64'),
+    gestorFiscalNome: text('gestor_fiscal_nome'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Reaproveita forma_garantia da Ferramenta 4 (mesmo conceito de garantia).
+export const garantiaContratual = pgTable('garantia_contratual', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    formaEscolhida: formaGarantiaEnum('forma_escolhida').notNull().default('nenhuma'),
+    valor: numeric('valor', { precision: 14, scale: 2 }),
+    prazoApresentacaoEm: timestamp('prazo_apresentacao_em', { withTimezone: true }),
+    vigenciaInicioEm: timestamp('vigencia_inicio_em', { withTimezone: true }),
+    vigenciaFimEm: timestamp('vigencia_fim_em', { withTimezone: true }),
+    comprovanteTexto: text('comprovante_texto'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// "Aqui o círculo fecha com a Ferramenta 2: o que era previsão de recurso
+// vira empenho real." Pode haver mais de um empenho por participação.
+export const empenhoParticipacao = pgTable('empenho_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    numeroNotaEmpenho: text('numero_nota_empenho').notNull(),
+    dataEm: timestamp('data_em', { withTimezone: true }).notNull(),
+    valorEmpenhado: numeric('valor_empenhado', { precision: 14, scale: 2 }).notNull(),
+    saldo: numeric('saldo', { precision: 14, scale: 2 }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+    index('empenho_participacao_participacao_id_idx').on(t.participacaoId),
+]);
+
+// "Este é o dado que faz o semáforo da Ferramenta 2 funcionar de verdade" —
+// alimenta lib/indicador-pagamento-orgao.ts.
+export const pagamentoContrato = pgTable('pagamento_contrato', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    dataNotaFiscalEm: timestamp('data_nota_fiscal_em', { withTimezone: true }).notNull(),
+    valor: numeric('valor', { precision: 14, scale: 2 }).notNull(),
+    dataPrevistaPagamentoEm: timestamp('data_prevista_pagamento_em', { withTimezone: true }),
+    dataEfetivaPagamentoEm: timestamp('data_efetiva_pagamento_em', { withTimezone: true }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+    index('pagamento_contrato_participacao_id_idx').on(t.participacaoId),
+]);
+
+// Alimenta o cadastro de impedimentos (empresa.impedimentosSancoes) — aqui
+// fica o registro por participação; a consolidação no cadastro da empresa é
+// feita pelo operador (mesma lacuna do resto do sistema: sem automação que
+// altera o cadastro central da empresa sozinha).
+export const sancaoParticipacao = pgTable('sancao_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    tipo: text('tipo').notNull(),
+    motivo: text('motivo').notNull(),
+    dataEm: timestamp('data_em', { withTimezone: true }).notNull(),
+    vigenciaFimEm: timestamp('vigencia_fim_em', { withTimezone: true }),
+    documentoTexto: text('documento_texto'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+    index('sancao_participacao_participacao_id_idx').on(t.participacaoId),
 ]);

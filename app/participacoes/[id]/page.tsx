@@ -222,6 +222,9 @@ export default function ParticipacaoPage() {
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/recurso-fase`} />}>
               Recurso
             </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/resultado`} />}>
+              Resultado
+            </Button>
           </div>
         </div>
 

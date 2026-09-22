@@ -27,7 +27,7 @@ export async function GET(
   }
 
   const [ficha] = await db.select().from(fichaRecurso).where(eq(fichaRecurso.participacaoId, id)).limit(1)
-  const indicadorPagamento = await obterIndicadorPagamentoOrgao(participacaoAtual.orgao)
+  const indicadorPagamento = await obterIndicadorPagamentoOrgao(participacaoAtual.empresaId, participacaoAtual.orgao)
 
   return NextResponse.json({ ficha: ficha ?? null, indicadorPagamento })
 }
@@ -80,7 +80,7 @@ export async function PATCH(
   }
 
   const vigenciaEm = dataOuNula(body.vigenciaEm)
-  const indicadorPagamento = await obterIndicadorPagamentoOrgao(participacaoAtual.orgao)
+  const indicadorPagamento = await obterIndicadorPagamentoOrgao(participacaoAtual.empresaId, participacaoAtual.orgao)
   const { semaforo, fatores } = calcularSemaforo({
     origem: (body.origem as (typeof ORIGENS_RECURSO)[number] | null) ?? null,
     instrumento: (body.instrumento as (typeof INSTRUMENTOS_RECURSO)[number] | null) ?? null,

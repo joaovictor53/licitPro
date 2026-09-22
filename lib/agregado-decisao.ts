@@ -40,7 +40,7 @@ export const montarAgregadoDecisao = async (participacaoId: string) => {
     .innerJoin(exigenciaEdital, eq(exigenciaEdital.id, acessoriaParticipacao.exigenciaEditalId))
     .where(eq(acessoriaParticipacao.participacaoId, participacaoId))
 
-  const indicadorPagamento = await obterIndicadorPagamentoOrgao(participacaoAtual.orgao)
+  const indicadorPagamento = await obterIndicadorPagamentoOrgao(participacaoAtual.empresaId, participacaoAtual.orgao)
 
   const itensCriticosNaoConferidos = itensChecklist.filter((i) => i.situacao === 'a_verificar' && i.risco !== 'sanavel').length
   const itensAVerificar = itensChecklist.filter((i) => i.situacao === 'a_verificar').length
