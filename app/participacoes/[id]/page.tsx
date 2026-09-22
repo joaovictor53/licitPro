@@ -216,6 +216,12 @@ export default function ParticipacaoPage() {
             <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/sessao`} />}>
               Sessão
             </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/habilitacao`} />}>
+              Habilitação
+            </Button>
+            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/recurso-fase`} />}>
+              Recurso
+            </Button>
           </div>
         </div>
 

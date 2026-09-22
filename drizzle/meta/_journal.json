@@ -127,6 +127,13 @@
       "when": 1790087366252,
       "tag": "0017_empty_exodus",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790087781709,
+      "tag": "0018_old_black_queen",
+      "breakpoints": true
     }
   ]
 }

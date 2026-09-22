@@ -11,6 +11,8 @@ import { type ItemPrecoSnapshot, type TotaisPlanilhaPrecos } from '@/types/preco
 import { type PecaMontagem, type ChecagemFinalProposta } from '@/types/proposta-tipos';
 import { METODOS_EXIGENCIA_ASSINATURA, METODOS_ASSINATURA_USADOS, STATUS_ASSINATURA_PECA, STATUS_APROVACAO_PROPOSTA } from '@/types/assinatura-tipos';
 import { SITUACOES_RESULTADO_SESSAO } from '@/types/sessao-tipos';
+import { RESULTADOS_HABILITACAO } from '@/types/habilitacao-tipos';
+import { ESTADOS_RECURSO_FASE, RESULTADOS_DECISAO_RECURSAL } from '@/types/recurso-fase-tipos';
 
 export const user = pgTable('user', {
     id: text('id').primaryKey(),
@@ -850,4 +852,152 @@ export const convocacaoAnexoSessao = pgTable('convocacao_anexo_sessao', {
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [
     index('convocacao_anexo_sessao_participacao_id_idx').on(t.participacaoId),
+]);
+
+// ── Ferramenta 13, Habilitação ──────────────────────────────────────────────
+
+export const resultadoHabilitacaoEnum = pgEnum('resultado_habilitacao', RESULTADOS_HABILITACAO);
+
+// A revalidação documento-a-documento reaproveita checklist_participacao +
+// documento_empresa (calcularSituacaoChecklist com marco = hoje, em vez do
+// marco da sessão) — não duplica tabela. Esta guarda só o resultado final.
+export const habilitacaoParticipacao = pgTable('habilitacao_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    resultado: resultadoHabilitacaoEnum('resultado'),
+    motivoInabilitacao: text('motivo_inabilitacao'),
+
+    registradoPorUserId: text('registrado_por_user_id').references(() => user.id),
+    registradoEm: timestamp('registrado_em', { withTimezone: true }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Convocação do pregoeiro para envio de documento de habilitação —
+// criticidade máxima, prazo curto (mesmo formato de convocacao_anexo_sessao,
+// tabela própria porque o contexto é outro: habilitação, não sessão).
+export const convocacaoPregoeiro = pgTable('convocacao_pregoeiro', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    dataHoraConvocacaoEm: timestamp('data_hora_convocacao_em', { withTimezone: true }).notNull(),
+    prazoLimiteEm: timestamp('prazo_limite_em', { withTimezone: true }).notNull(),
+    oQueFoiSolicitado: text('o_que_foi_solicitado').notNull(),
+    ondeEnviar: text('onde_enviar'),
+    atendidoEm: timestamp('atendido_em', { withTimezone: true }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+    index('convocacao_pregoeiro_participacao_id_idx').on(t.participacaoId),
+]);
+
+export const diligenciaHabilitacao = pgTable('diligencia_habilitacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    oQueFoiQuestionado: text('o_que_foi_questionado').notNull(),
+    prazoRespostaEm: timestamp('prazo_resposta_em', { withTimezone: true }).notNull(),
+    respostaEnviadaEm: timestamp('resposta_enviada_em', { withTimezone: true }),
+    documentoComplementar: text('documento_complementar'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+    index('diligencia_habilitacao_participacao_id_idx').on(t.participacaoId),
+]);
+
+// Regra padrão 5 dias úteis (o edital sempre prevalece — por isso
+// `prazoDiasUteis` é editável, não fixo em 5).
+export const regularizacaoMeEpp = pgTable('regularizacao_me_epp', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    dataDeclaracaoVencedoraEm: timestamp('data_declaracao_vencedora_em', { withTimezone: true }).notNull(),
+    prazoDiasUteis: integer('prazo_dias_uteis').notNull().default(5),
+    prorrogacaoDias: integer('prorrogacao_dias'),
+    documentoPendente: text('documento_pendente'),
+    protocoloEvidencia: text('protocolo_evidencia'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ── Ferramenta 14, Recurso (fase recursal) ─────────────────────────────────
+// Não confundir com `ficha_recurso` (Ferramenta 2, análise prévia de risco).
+
+export const estadoRecursoFaseEnum = pgEnum('estado_recurso_fase', ESTADOS_RECURSO_FASE);
+export const resultadoDecisaoRecursalEnum = pgEnum('resultado_decisao_recursal', RESULTADOS_DECISAO_RECURSAL);
+
+// Quando a EMPRESA recorre. Uma linha por evento recorrível.
+export const recursoProprioParticipacao = pgTable('recurso_proprio_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    atoRecorrido: text('ato_recorrido').notNull(),
+    dataHoraAtoEm: timestamp('data_hora_ato_em', { withTimezone: true }).notNull(),
+    prazoIntencaoEm: timestamp('prazo_intencao_em', { withTimezone: true }),
+
+    intencaoRegistradaEm: timestamp('intencao_registrada_em', { withTimezone: true }),
+    intencaoAlegacao: text('intencao_alegacao'),
+
+    prazoRazoesEm: timestamp('prazo_razoes_em', { withTimezone: true }),
+    razoesProtocoloNumero: text('razoes_protocolo_numero'),
+    razoesArquivoNome: text('razoes_arquivo_nome'),
+    razoesArquivoBase64: text('razoes_arquivo_base64'),
+    razoesProtocoladoEm: timestamp('razoes_protocolado_em', { withTimezone: true }),
+
+    decisaoResultado: resultadoDecisaoRecursalEnum('decisao_resultado'),
+    decisaoEm: timestamp('decisao_em', { withTimezone: true }),
+    decisaoArquivoNome: text('decisao_arquivo_nome'),
+    decisaoArquivoBase64: text('decisao_arquivo_base64'),
+
+    estado: estadoRecursoFaseEnum('estado').notNull().default('evento_identificado'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+    index('recurso_proprio_participacao_participacao_id_idx').on(t.participacaoId),
+]);
+
+// Quando OUTRO recorre contra a empresa — a empresa responde com contrarrazões.
+export const recursoTerceiroParticipacao = pgTable('recurso_terceiro_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    quem: text('quem').notNull(),
+    contraOQue: text('contra_o_que').notNull(),
+    dataIdentificacaoEm: timestamp('data_identificacao_em', { withTimezone: true }).notNull(),
+
+    prazoContrarrazoesEm: timestamp('prazo_contrarrazoes_em', { withTimezone: true }),
+    contrarrazoesProtocoloNumero: text('contrarrazoes_protocolo_numero'),
+    contrarrazoesArquivoNome: text('contrarrazoes_arquivo_nome'),
+    contrarrazoesArquivoBase64: text('contrarrazoes_arquivo_base64'),
+    contrarrazoesProtocoladoEm: timestamp('contrarrazoes_protocolado_em', { withTimezone: true }),
+
+    decisaoResultado: resultadoDecisaoRecursalEnum('decisao_resultado'),
+    decisaoEm: timestamp('decisao_em', { withTimezone: true }),
+
+    estado: estadoRecursoFaseEnum('estado').notNull().default('evento_identificado'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+    index('recurso_terceiro_participacao_participacao_id_idx').on(t.participacaoId),
 ]);
