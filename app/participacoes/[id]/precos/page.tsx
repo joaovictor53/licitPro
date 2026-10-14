@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { ReadequacaoLance } from '@/components/readequacao-lance'
 import {
   Table,
   TableBody,
@@ -131,11 +132,14 @@ export default function PrecosPage() {
   }
 
   const salvarCampo = async (itemId: string, campo: string, valor: string) => {
-    await fetch(`/api/participacoes/${id}/itens-preco/${itemId}`, {
+    const resposta = await fetch(`/api/participacoes/${id}/itens-preco/${itemId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [campo]: valor || null }),
     })
+    // Preço recusado pela regra de casas decimais do edital, ou truncado: diz o motivo em vez de só reverter.
+    const dados = await resposta.json().catch(() => null)
+    setErro(resposta.ok ? (dados?.aviso ?? '') : (dados?.erro ?? 'Não foi possível salvar.'))
     carregar()
   }
 
@@ -338,6 +342,8 @@ export default function PrecosPage() {
                 </div>
               </div>
             )}
+
+            {itens.length > 0 && <ReadequacaoLance participacaoId={id} aoAplicar={carregar} />}
 
             {itensAcimaTeto > 0 && (
               <Alert variant="destructive">
