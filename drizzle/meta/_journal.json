@@ -141,6 +141,13 @@
       "when": 1790088326176,
       "tag": "0019_wakeful_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791990104888,
+      "tag": "0020_condicoes_proposta",
+      "breakpoints": true
     }
   ]
 }

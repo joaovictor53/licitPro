@@ -6,15 +6,16 @@
 //
 // Fora de escopo deste MVP (documentado, não escondido): anexos-modelo do
 // edital preenchidos automaticamente (não há extração estruturada de
-// formulário-anexo) e verificação de prazo de validade/entrega contra o
-// exigido pelo edital (a Ferramenta 3 ainda não estrutura esses dois prazos
-// como campos comparáveis) — por isso essas duas conferências do doc não
-// aparecem na checagem abaixo.
+// formulário-anexo). Validade, prazo de entrega, garantia, marca/modelo e dados
+// bancários são lidos do texto do edital (lib/exigencias-proposta.ts) e
+// conferidos contra o que o operador oferece (condições da proposta).
 
 import { desc, eq } from 'drizzle-orm'
 import { db } from '@/app/src'
 import { acessoriaParticipacao, checklistParticipacao, exigenciaEdital, itemPrecoParticipacao, versaoPlanilhaPrecos } from '@/app/src/db/schema'
 import { AgregadoMontagemProposta, PecaMontagem } from '@/types/proposta-tipos'
+import { carregarCondicoes } from '@/lib/condicoes-proposta-server'
+import { avaliarCondicoesProposta } from '@/lib/exigencias-proposta'
 
 export const montarAgregadoProposta = async (participacaoId: string): Promise<AgregadoMontagemProposta> => {
   const itensChecklist = await db
@@ -106,6 +107,18 @@ export const montarAgregadoProposta = async (participacaoId: string): Promise<Ag
   const itensSemPreco = itensPreco.filter((item) => item.precoOfertado == null)
   if (itensSemPreco.length > 0) {
     pendencias.push(`${itensSemPreco.length} item(ns) ainda sem preço ofertado.`)
+  }
+
+  const condicoes = await carregarCondicoes(participacaoId)
+  if (condicoes.campos.length > 0) {
+    const pendenciasCondicoes = avaliarCondicoesProposta(condicoes.campos, condicoes.valores, itensPreco)
+    pecas.push({
+      peca: 'Condições da proposta (validade, entrega, garantia...)',
+      origem: 'edital',
+      situacao: pendenciasCondicoes.length === 0 ? 'pronta' : 'faltando',
+      detalhe: pendenciasCondicoes.length === 0 ? undefined : pendenciasCondicoes.join(' '),
+    })
+    pendencias.push(...pendenciasCondicoes)
   }
 
   return {

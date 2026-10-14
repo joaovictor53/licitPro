@@ -28,3 +28,14 @@ export interface AgregadoMontagemProposta {
   pecas: PecaMontagem[]
   checagem: ChecagemFinalProposta
 }
+
+// Condições comerciais que o operador OFERECE (validade, entrega, garantia, marca...), por id de
+// campo exigido pelo edital (lib/exigencias-proposta.ts). Prazo guarda número e unidade.
+export type UnidadePrazo = 'horas' | 'dias' | 'meses' | 'anos'
+
+export interface CondicaoOferecida {
+  valor: string
+  unidade?: UnidadePrazo | null
+}
+
+export type CondicoesOferecidas = Record<string, CondicaoOferecida>

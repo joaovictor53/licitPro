@@ -8,7 +8,7 @@ import { TIPOS_DOCUMENTO_DOSSIE, SITUACOES_CHECKLIST, STATUS_ACESSORIA, type Dad
 import { FORMAS_GARANTIA, type ResultadoViabilidade } from '@/types/viabilidade-tipos';
 import { DECISOES_PARTICIPACAO, MOTIVOS_NAO_PARTICIPAR, STATUS_APROVACAO_EMPRESA, type AlertaDecisao, type NumerosCongeladosDecisao } from '@/types/decisao-tipos';
 import { type ItemPrecoSnapshot, type TotaisPlanilhaPrecos } from '@/types/preco-tipos';
-import { type PecaMontagem, type ChecagemFinalProposta } from '@/types/proposta-tipos';
+import { type PecaMontagem, type ChecagemFinalProposta, type CondicoesOferecidas } from '@/types/proposta-tipos';
 import { METODOS_EXIGENCIA_ASSINATURA, METODOS_ASSINATURA_USADOS, STATUS_ASSINATURA_PECA, STATUS_APROVACAO_PROPOSTA } from '@/types/assinatura-tipos';
 import { SITUACOES_RESULTADO_SESSAO } from '@/types/sessao-tipos';
 import { RESULTADOS_HABILITACAO } from '@/types/habilitacao-tipos';
@@ -1134,3 +1134,19 @@ export const sancaoParticipacao = pgTable('sancao_participacao', {
 }, (t) => [
     index('sancao_participacao_participacao_id_idx').on(t.participacaoId),
 ]);
+
+// Condições comerciais oferecidas na proposta (validade, prazo de entrega, garantia, marca, modelo,
+// dados bancários...). Uma linha por participação; o que o edital exige é lido do texto dele
+// (lib/exigencias-proposta.ts) e conferido contra estes valores antes de gerar a proposta.
+export const condicoesPropostaParticipacao = pgTable('condicoes_proposta_participacao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    participacaoId: uuid('participacao_id')
+        .notNull()
+        .unique()
+        .references(() => participacao.id, { onDelete: 'cascade' }),
+
+    valores: jsonb('valores').$type<CondicoesOferecidas>().notNull().default({}),
+
+    atualizadoPorUserId: text('atualizado_por_user_id').references(() => user.id),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});

@@ -12,6 +12,10 @@ import { obterParticipacaoDaEmpresa } from '@/lib/empresa-server'
 import { montarAgregadoProposta } from '@/lib/montagem-proposta'
 import { gerarDocumentoProposta } from '@/lib/documento-proposta'
 import { montarSnapshotItem } from '@/lib/composicao-preco'
+import { somar } from '@/lib/dinheiro'
+import { conferirPdfProposta } from '@/lib/porteiro-proposta'
+import { carregarCondicoes } from '@/lib/condicoes-proposta-server'
+import { linhasDeCondicoes } from '@/lib/exigencias-proposta'
 
 export async function GET(
   _request: NextRequest,
@@ -84,7 +88,9 @@ export async function POST(
       precoOfertado: item.precoOfertado != null ? Number(item.precoOfertado) : null,
     })
   )
-  const totalGeral = snapshotItens.reduce((soma, item) => soma + item.avaliacao.totalItem, 0)
+  const totalGeral = somar(snapshotItens.map((item) => item.avaliacao.totalItem))
+
+  const condicoes = await carregarCondicoes(id)
 
   const buffer = await gerarDocumentoProposta({
     empresa: {
@@ -101,7 +107,20 @@ export async function POST(
     },
     itens: snapshotItens,
     totalGeral,
+    condicoes: linhasDeCondicoes(condicoes.campos, condicoes.valores),
   })
+
+  // Porteiro: relê o PDF gerado e refaz as contas a partir dele. PDF com problema não vira versão.
+  const conferencia = await conferirPdfProposta(buffer, { itens: snapshotItens, totalGeral, campos: condicoes.campos })
+  if (conferencia.veredito === 'BLOQUEADO') {
+    return NextResponse.json(
+      {
+        erro: 'A conferência do PDF gerado não passou — a proposta não foi salva.',
+        pendencias: conferencia.problemas.map((problema) => problema.mensagem),
+      },
+      { status: 409 }
+    )
+  }
 
   const [{ ultimaVersao } = { ultimaVersao: 0 }] = await db
     .select({ ultimaVersao: versaoProposta.versao })

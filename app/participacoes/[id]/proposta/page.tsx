@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { CondicoesProposta } from '@/components/condicoes-proposta'
 import {
   Table,
   TableBody,
@@ -95,7 +96,8 @@ export default function PropostaPage() {
     const dados = await resposta.json().catch(() => null)
     setGerando(false)
     if (!resposta.ok) {
-      setErro(dados?.erro ?? 'Não foi possível gerar a proposta.')
+      const motivos: string[] = Array.isArray(dados?.pendencias) ? dados.pendencias : []
+      setErro([dados?.erro ?? 'Não foi possível gerar a proposta.', ...motivos].join(' '))
       return
     }
     carregar()
@@ -170,6 +172,8 @@ export default function PropostaPage() {
             </Table>
           </CardContent>
         </Card>
+
+        <CondicoesProposta participacaoId={id} aoSalvar={carregar} />
 
         <Card>
           <CardHeader>
