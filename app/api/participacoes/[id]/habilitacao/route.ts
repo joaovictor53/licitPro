@@ -36,6 +36,8 @@ export async function GET(
       tipoDocumento: documentoEmpresa.tipo,
       validadeEm: documentoEmpresa.validadeEm,
       dadosBalanco: documentoEmpresa.dadosBalanco,
+      nomeDocumento: documentoEmpresa.nome,
+      evidenciaDocumento: documentoEmpresa.evidencia,
     })
     .from(checklistParticipacao)
     .innerJoin(exigenciaEdital, eq(exigenciaEdital.id, checklistParticipacao.exigenciaEditalId))
@@ -48,7 +50,9 @@ export async function GET(
     risco: item.risco,
     situacaoNaSessao: item.situacaoNaSessao,
     situacaoHoje: calcularSituacaoChecklist(
-      item.tipoDocumento ? { tipo: item.tipoDocumento, validadeEm: item.validadeEm, dadosBalanco: item.dadosBalanco } : null,
+      item.tipoDocumento
+        ? { tipo: item.tipoDocumento, validadeEm: item.validadeEm, dadosBalanco: item.dadosBalanco, nome: item.nomeDocumento, evidencia: item.evidenciaDocumento }
+        : null,
       null
     ),
   }))

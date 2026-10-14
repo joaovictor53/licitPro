@@ -13,6 +13,8 @@
 //    foi confirmado por um humano (manual ou após confirmação do sugerido).
 
 import { DadosBalancoPatrimonial, SituacaoChecklist, TipoDocumentoDossie } from '@/types/documento-tipos'
+import { proporNovoTipo, textoCasaComPalavrasChave } from '@/lib/catalogo-documentos'
+import { classificarSituacaoCertidao, temRestricao } from '@/lib/tipos-certidao'
 
 interface DocumentoParaMatch {
   id: string
@@ -58,6 +60,14 @@ export const sugerirDocumentoParaExigencia = (
       return documento
     }
   }
+
+  // Documento de tipo 'outro' (tipo que o dossiê ainda não conhece): casa pelo NOME, com palavras-chave
+  // seguras (frase inteira, ou 3+ termos distintivos). Vocabulário genérico de certidão nunca casa sozinho.
+  for (const documento of documentos) {
+    if (documento.tipo !== 'outro') continue
+    const proposto = proporNovoTipo(documento.nome)
+    if (proposto && textoCasaComPalavrasChave(textoExigencia, proposto.palavrasChave)) return documento
+  }
   return null
 }
 
@@ -65,7 +75,12 @@ export interface DocumentoParaSituacao {
   tipo: TipoDocumentoDossie
   validadeEm: Date | null
   dadosBalanco: DadosBalancoPatrimonial | null
+  /** Nome e evidência do documento: o título da certidão ("positiva") é lido deles. */
+  nome?: string | null
+  evidencia?: string | null
 }
+
+const TIPOS_CERTIDAO: TipoDocumentoDossie[] = ['certidao_federal', 'certidao_estadual', 'certidao_municipal', 'fgts', 'trabalhista']
 
 /** Balanço sem os quatro campos da Junta Comercial nunca atende — regra explícita da Ferramenta 6. */
 const balancoIncompleto = (dados: DadosBalancoPatrimonial | null): boolean =>
@@ -77,6 +92,10 @@ export const calcularSituacaoChecklist = (
 ): SituacaoChecklist => {
   if (!documento) return 'faltando'
   if (documento.tipo === 'balanco_patrimonial' && balancoIncompleto(documento.dadosBalanco)) return 'nao_confere'
+  // Certidão POSITIVA (com restrição) não atende. "Positiva com efeitos de negativa" vale como regular.
+  if (TIPOS_CERTIDAO.includes(documento.tipo) && temRestricao(classificarSituacaoCertidao(`${documento.nome ?? ''} ${documento.evidencia ?? ''}`)?.situacao)) {
+    return 'nao_confere'
+  }
   if (!documento.validadeEm) return 'ok'
 
   const referencia = marcoDataEm && marcoDataEm.getTime() > Date.now() ? marcoDataEm : new Date()
