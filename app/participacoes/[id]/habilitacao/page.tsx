@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Declaracoes } from '@/components/declaracoes'
 import {
   Table,
   TableBody,
@@ -285,6 +286,7 @@ export default function HabilitacaoPage() {
             )}
           </CardContent>
         </Card>
+        <Declaracoes participacaoId={id} />
       </main>
     </div>
   )
