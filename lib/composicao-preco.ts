@@ -4,7 +4,7 @@
 
 import { AvaliacaoItemPreco, ItemPrecoSnapshot, SituacaoPreco, TotaisPlanilhaPrecos } from '@/types/preco-tipos'
 
-const arredondar = (valor: number): number => Math.round(valor * 100) / 100
+import { arredondarCentavos as arredondar, atingeFracao, multiplicarEmCentavos, percentual, somar, subtrair } from '@/lib/dinheiro'
 
 export interface ItemPrecoEntrada {
   id: string
@@ -22,19 +22,19 @@ export interface ItemPrecoEntrada {
 
 export const avaliarItemPreco = (item: ItemPrecoEntrada): AvaliacaoItemPreco => {
   const quantidade = item.quantidade || 0
-  const totalItem = arredondar((item.precoOfertado ?? 0) * quantidade)
+  const totalItem = multiplicarEmCentavos(item.precoOfertado ?? 0, quantidade)
 
   if (item.precoOfertado == null || item.custoUnitario == null) {
     return { situacao: null, margemUnitaria: null, margemPercentual: null, totalItem }
   }
 
-  const margemUnitaria = item.precoOfertado - item.custoUnitario
-  const margemPercentual = item.precoOfertado > 0 ? (margemUnitaria / item.precoOfertado) * 100 : 0
+  const margemUnitaria = subtrair(item.precoOfertado, item.custoUnitario)
+  const margemPercentual = percentual(margemUnitaria, item.precoOfertado) ?? 0
 
   let situacao: SituacaoPreco
   if (item.tetoUnitario != null && item.precoOfertado > item.tetoUnitario) situacao = 'acima_teto'
   else if (item.pisoUnitario != null && item.precoOfertado < item.pisoUnitario) situacao = 'abaixo_piso'
-  else if (item.tetoUnitario != null && item.precoOfertado >= item.tetoUnitario * 0.95) situacao = 'perto_teto'
+  else if (item.tetoUnitario != null && atingeFracao(item.precoOfertado, item.tetoUnitario, 95)) situacao = 'perto_teto'
   else if (item.alvoUnitario != null && item.precoOfertado < item.alvoUnitario) situacao = 'entre_piso_alvo'
   else situacao = 'no_alvo'
 
@@ -62,25 +62,26 @@ export const montarSnapshotItem = (item: ItemPrecoEntrada): ItemPrecoSnapshot =>
 })
 
 export const calcularTotaisPlanilha = (itens: ItemPrecoEntrada[], valorEstimado: number | null): TotaisPlanilhaPrecos => {
-  let totalGeral = 0
-  let totalCusto = 0
+  const totaisItens: number[] = []
+  const custosItens: number[] = []
   let itensAbaixoPiso = 0
   let itensAcimaTeto = 0
 
   for (const item of itens) {
     const quantidade = item.quantidade || 0
     const avaliacao = avaliarItemPreco(item)
-    totalGeral += avaliacao.totalItem
-    totalCusto += arredondar((item.custoUnitario ?? 0) * quantidade)
+    totaisItens.push(avaliacao.totalItem)
+    custosItens.push(multiplicarEmCentavos(item.custoUnitario ?? 0, quantidade))
     if (avaliacao.situacao === 'abaixo_piso') itensAbaixoPiso += 1
     if (avaliacao.situacao === 'acima_teto') itensAcimaTeto += 1
   }
 
-  const margemConsolidadaValor = arredondar(totalGeral - totalCusto)
-  const margemConsolidadaPercentual = totalGeral > 0 ? arredondar((margemConsolidadaValor / totalGeral) * 100) : null
-  const diferencaValorEstimado = valorEstimado != null ? arredondar(totalGeral - valorEstimado) : null
-  const diferencaValorEstimadoPercentual =
-    valorEstimado != null && valorEstimado > 0 ? arredondar((diferencaValorEstimado! / valorEstimado) * 100) : null
+  const totalGeral = somar(totaisItens)
+  const totalCusto = somar(custosItens)
+  const margemConsolidadaValor = arredondar(subtrair(totalGeral, totalCusto))
+  const margemConsolidadaPercentual = percentual(margemConsolidadaValor, totalGeral)
+  const diferencaValorEstimado = valorEstimado != null ? arredondar(subtrair(totalGeral, valorEstimado)) : null
+  const diferencaValorEstimadoPercentual = valorEstimado != null && diferencaValorEstimado != null ? percentual(diferencaValorEstimado, valorEstimado) : null
 
   return {
     quantidadeItens: itens.length,

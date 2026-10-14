@@ -5,8 +5,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { exigirUsuarioApi } from '@/lib/sessao'
 import { db } from '@/app/src'
-import { itemPrecoParticipacao } from '@/app/src/db/schema'
+import { edital, itemPrecoParticipacao } from '@/app/src/db/schema'
 import { obterParticipacaoDaEmpresa } from '@/lib/empresa-server'
+import { aplicarRegra, sugerirNoTexto } from '@/lib/casas-decimais'
 
 interface CorpoPatch {
   descricao?: string
@@ -47,8 +48,25 @@ export async function PATCH(
   if (body.pisoUnitario !== undefined) valores.pisoUnitario = body.pisoUnitario
   if (body.alvoUnitario !== undefined) valores.alvoUnitario = body.alvoUnitario
   if (body.tetoUnitario !== undefined) valores.tetoUnitario = body.tetoUnitario
+  let avisoCasas = ''
   if (body.precoOfertado !== undefined) {
-    valores.precoOfertado = body.precoOfertado
+    let precoGravado = body.precoOfertado
+    if (precoGravado != null && precoGravado.trim() !== '') {
+      // Casas decimais do preço: lidas do edital (com página); sem regra, vale o padrão de 2 casas.
+      // Nunca arredonda em silêncio: ou cabe, ou é truncado avisando, ou é recusado.
+      const [editalDaParticipacao] = await db
+        .select({ texto: edital.textoExtraido })
+        .from(edital)
+        .where(eq(edital.participacaoId, id))
+        .limit(1)
+      const casas = aplicarRegra(precoGravado, editalDaParticipacao ? sugerirNoTexto(editalDaParticipacao.texto) : null)
+      if (casas.valor === null) {
+        return NextResponse.json({ erro: casas.mensagem }, { status: 400 })
+      }
+      precoGravado = casas.valor
+      avisoCasas = casas.mensagem
+    }
+    valores.precoOfertado = precoGravado === '' ? null : precoGravado
     valores.precoDefinidoPorUserId = session.user.id
     valores.precoDefinidoEm = new Date()
   }
@@ -63,7 +81,7 @@ export async function PATCH(
     return NextResponse.json({ erro: 'Item não encontrado.' }, { status: 404 })
   }
 
-  return NextResponse.json({ item: atualizado })
+  return NextResponse.json({ item: atualizado, ...(avisoCasas ? { aviso: avisoCasas } : {}) })
 }
 
 export async function DELETE(

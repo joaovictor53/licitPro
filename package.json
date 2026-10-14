@@ -9,6 +9,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "test": "node --import tsx --test lib/*.test.ts",
     "db:test": "node scripts/testar-banco.mjs",
     "db:migrar-dados": "node scripts/migrar-dados.mjs",
     "db:seed-cnae": "node scripts/seed-cnae-por-objeto.mjs",
