@@ -405,6 +405,19 @@ export const editalPncp = pgTable('edital_pncp', {
     index('edital_pncp_uf_publicacao_idx').on(t.uf, t.dataPublicacaoPncp),
 ]);
 
+// Alterações percebidas num edital já coletado (objeto, valor, prazos...).
+// Nunca apaga: cada mudança é uma linha, com o antes e o depois.
+export const editalAlteracao = pgTable('edital_alteracao', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    numeroControlePncp: text('numero_controle_pncp').notNull(),
+    campo: text('campo').notNull(),
+    antes: text('antes'),
+    depois: text('depois'),
+    detectadaEm: timestamp('detectada_em', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+    index('edital_alteracao_numero_idx').on(t.numeroControlePncp, t.detectadaEm),
+]);
+
 // ── Ferramenta 6, Preparação Documental ────────────────────────────────────
 
 export const tipoDocumentoDossieEnum = pgEnum('tipo_documento_dossie', TIPOS_DOCUMENTO_DOSSIE);

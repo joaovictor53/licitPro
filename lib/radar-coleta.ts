@@ -6,8 +6,9 @@
 // compartilhado entre empresas; a classificação por empresa vem depois.
 
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { compararEditais } from '@/lib/alteracoes-edital'
 import { db } from '@/app/src'
-import { editalPncp, radarVarredura } from '@/app/src/db/schema'
+import { editalAlteracao, editalPncp, radarVarredura } from '@/app/src/db/schema'
 import { ATRASO_ENTRE_CHAMADAS_MS, MODALIDADES_RADAR, aguardar, buscarPaginaPncp, mapearParaContratacaoRadar } from '@/lib/pncp'
 import {
   chaveDaVarredura,
@@ -60,6 +61,18 @@ export const contratacaoParaLinha = (c: ContratacaoRadar) => ({
 export const gravarEditais = async (contratacoes: ContratacaoRadar[]): Promise<number> => {
   const linhas = contratacoes.filter((c) => c.identificadorExterno).map(contratacaoParaLinha)
   if (linhas.length === 0) return 0
+
+  // Antes de sobrescrever, compara com o que já tínhamos: o que mudou vira
+  // alteração registrada (editais novos não têm "antes" e não geram nada).
+  const numeros = linhas.map((l) => l.numeroControlePncp)
+  const anteriores = await db.select().from(editalPncp).where(inArray(editalPncp.numeroControlePncp, numeros))
+  const porNumero = new Map(anteriores.map((e) => [e.numeroControlePncp, e]))
+  const alteracoes = linhas.flatMap((linha) => {
+    const anterior = porNumero.get(linha.numeroControlePncp)
+    if (!anterior) return []
+    return compararEditais(anterior, linha).map((a) => ({ numeroControlePncp: linha.numeroControlePncp, ...a }))
+  })
+  if (alteracoes.length > 0) await db.insert(editalAlteracao).values(alteracoes)
 
   await db
     .insert(editalPncp)
@@ -207,4 +220,51 @@ export const coletarPncp = async (params: {
   // Quem não foi tocado + quem foi tocado mas não fechou.
   resultado.restantes = pendentes.length - processadas + resultado.incompletas + resultado.erros
   return resultado
+}
+
+/**
+ * Monitoramento: pergunta ao PNCP o que foi atualizado nos últimos dias e
+ * grava. `gravarEditais` compara com a cópia local e registra as diferenças.
+ * Nunca baixa documentos.
+ */
+export const monitorarAtualizacoesPncp = async (params: {
+  ufs: string[]
+  orcamentoMs: number
+  dias?: number
+}): Promise<{ lidos: number; falhas: string[] }> => {
+  const limite = Date.now() + params.orcamentoMs
+  const hoje = new Date()
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - (params.dias ?? 3))
+  const dataInicial = formatarDataPncp(inicio)
+  const dataFinal = formatarDataPncp(hoje)
+
+  let lidos = 0
+  const falhas: string[] = []
+
+  for (const uf of params.ufs) {
+    for (const modalidade of MODALIDADES_RADAR) {
+      let pagina = 1
+      while (Date.now() < limite) {
+        try {
+          const resposta = await buscarPaginaPncp({
+            rota: 'atualizacao',
+            uf,
+            codigoModalidadeContratacao: modalidade.codigo,
+            dataInicial,
+            dataFinal,
+            pagina,
+          })
+          lidos += await gravarEditais(resposta.data.map(mapearParaContratacaoRadar))
+          if (pagina >= resposta.totalPaginas || resposta.data.length === 0) break
+          pagina++
+        } catch (e) {
+          falhas.push(e instanceof Error ? e.message : String(e))
+          break
+        }
+        await aguardar(ATRASO_ENTRE_CHAMADAS_MS)
+      }
+      if (Date.now() >= limite) return { lidos, falhas }
+    }
+  }
+  return { lidos, falhas }
 }

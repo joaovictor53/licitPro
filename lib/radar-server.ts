@@ -5,8 +5,8 @@
 
 import { and, asc, eq, gte, inArray, isNull, like } from 'drizzle-orm'
 import { db } from '@/app/src'
-import { cnaePorObjeto, editalPncp, empresa, participacao, radarConfig } from '@/app/src/db/schema'
-import { coletarPncp, DIAS_COLETA } from '@/lib/radar-coleta'
+import { cnaePorObjeto, editalAlteracao, editalPncp, empresa, participacao, radarConfig } from '@/app/src/db/schema'
+import { coletarPncp, monitorarAtualizacoesPncp, DIAS_COLETA } from '@/lib/radar-coleta'
 import { buscarContratacoesPcp } from '@/lib/portal-compras-publicas'
 import { gerarPalavrasChaveCnae } from '@/lib/cnae-auto-geracao'
 import {
@@ -20,7 +20,8 @@ import { buscarDescricoesDosItens, lerNumeroControlePncp, pausaEntreConsultasDeI
 import type { ContratacaoRadar, RadarConfig } from '@/types/radar-tipos'
 
 // Tempo que a coleta pode usar dentro de uma requisição (maxDuration da rota é 60s).
-const ORCAMENTO_COLETA_MS = 30_000
+const ORCAMENTO_COLETA_MS = 25_000
+const ORCAMENTO_MONITORAMENTO_MS = 8_000
 const ORCAMENTO_ITENS_MS = 15_000
 const MAX_REAVALIACOES_POR_EXECUCAO = 8
 
@@ -211,6 +212,9 @@ export const executarRadar = async (empresaId: string, criadoPorUserId: string, 
     buscarContratacoesPcp(config.estados),
   ])
 
+  // Editais alterados nos últimos dias (a coleta por publicação não os vê).
+  const monitoramento = await monitorarAtualizacoesPncp({ ufs: config.estados, orcamentoMs: ORCAMENTO_MONITORAMENTO_MS })
+
   // 2) A busca lê da cópia local: mesmo que a coleta tenha ficado incompleta,
   //    o que já foi coletado antes continua disponível.
   const desde = new Date(Date.now() - DIAS_COLETA * 86_400_000)
@@ -234,7 +238,7 @@ export const executarRadar = async (empresaId: string, criadoPorUserId: string, 
   }))
 
   const brutos = [...doPncp, ...pcp.resultados]
-  const falhas = [...coleta.falhas, ...pcp.falhas]
+  const falhas = [...coleta.falhas, ...monitoramento.falhas, ...pcp.falhas]
 
   if (brutos.length === 0 && coleta.erros > 0) {
     throw new Error(
@@ -321,9 +325,9 @@ export const executarRadar = async (empresaId: string, criadoPorUserId: string, 
   }
 }
 
-/** Lista as participações do radar (ainda não decididas) ordenadas pela sessão mais próxima. */
-export const listarParticipacoesDoRadar = (empresaId: string) =>
-  db
+/** Lista as participações do radar (ainda não decididas) ordenadas pela sessão mais próxima, com as alterações do edital. */
+export const listarParticipacoesDoRadar = async (empresaId: string) => {
+  const linhas = await db
     .select()
     .from(participacao)
     .where(and(
@@ -331,3 +335,47 @@ export const listarParticipacoesDoRadar = (empresaId: string) =>
       inArray(participacao.estado, ['identificada', 'em_triagem']),
     ))
     .orderBy(asc(participacao.dataSessaoEm))
+
+  const alteracoes = await alteracoesDasParticipacoes(linhas)
+  return linhas.map((p) => ({ ...p, alteracoes: alteracoes.get(p.id) ?? [] }))
+}
+
+export interface AlteracaoDoEdital {
+  campo: string
+  antes: string | null
+  depois: string | null
+  detectadaEm: Date
+}
+
+/**
+ * Alterações percebidas depois que a empresa passou a acompanhar o edital,
+ * por participação. Só PNCP (a cópia local vem de lá).
+ */
+export const alteracoesDasParticipacoes = async (
+  itens: { id: string; numeroControlePncp: string | null; createdAt: Date }[]
+): Promise<Map<string, AlteracaoDoEdital[]>> => {
+  const numeros = itens
+    .map((p) => p.numeroControlePncp)
+    .filter((n): n is string => !!n && n.startsWith('pncp:'))
+    .map((n) => n.slice('pncp:'.length))
+  const resultado = new Map<string, AlteracaoDoEdital[]>()
+  if (numeros.length === 0) return resultado
+
+  const alteracoes = await db
+    .select()
+    .from(editalAlteracao)
+    .where(inArray(editalAlteracao.numeroControlePncp, numeros))
+    .orderBy(asc(editalAlteracao.detectadaEm))
+
+  for (const p of itens) {
+    const numero = p.numeroControlePncp?.replace(/^pncp:/, '')
+    const doEdital = alteracoes.filter((a) => a.numeroControlePncp === numero && a.detectadaEm > p.createdAt)
+    if (doEdital.length > 0) {
+      resultado.set(
+        p.id,
+        doEdital.map((a) => ({ campo: a.campo, antes: a.antes, depois: a.depois, detectadaEm: a.detectadaEm }))
+      )
+    }
+  }
+  return resultado
+}

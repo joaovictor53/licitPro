@@ -35,6 +35,7 @@ interface ParticipacaoRadar {
   categoriaRadar: 'relevante' | 'talvez' | 'irrelevante' | null
   notaRadar: number | null
   termosRadar: string[] | null
+  alteracoes: { campo: string; antes: string | null; depois: string | null }[]
 }
 
 interface RadarConfigForm {
@@ -57,6 +58,15 @@ const CONFIG_VAZIA: RadarConfigForm = {
   textoLivre: '',
   faixaValorMin: '',
   faixaValorMax: '',
+}
+
+const ROTULOS_ALTERACAO: Record<string, string> = {
+  objeto: 'Objeto',
+  valorEstimado: 'Valor estimado',
+  dataAberturaProposta: 'Abertura das propostas',
+  dataEncerramentoProposta: 'Encerramento das propostas',
+  modalidade: 'Modalidade',
+  linkOrigem: 'Link do processo',
 }
 
 const separarLista = (texto: string): string[] =>
@@ -388,6 +398,16 @@ export default function RadarPage() {
                             title="O objeto sozinho não decide. Os itens do edital são consultados para reavaliar."
                           >
                             Talvez
+                          </Badge>
+                        )}
+                        {p.alteracoes?.length > 0 && (
+                          <Badge
+                            className="mb-1 mr-1 bg-amber-500 text-white hover:bg-amber-500"
+                            title={p.alteracoes
+                              .map((a) => `${ROTULOS_ALTERACAO[a.campo] ?? a.campo}: ${a.antes ?? '—'} → ${a.depois ?? '—'}`)
+                              .join('\n')}
+                          >
+                            Edital alterado
                           </Badge>
                         )}
                         {p.termosRadar && p.termosRadar.length > 0 && (
