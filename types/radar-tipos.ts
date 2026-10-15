@@ -53,4 +53,7 @@ export interface ContratacaoRadar {
   numeroProcesso: string | null
   dataSessaoEm: string | null
   linkPortalOrigem: string | null
+  orgaoCnpj?: string | null
+  dataEncerramentoProposta?: string | null
+  dataPublicacaoPncp?: string | null
 }

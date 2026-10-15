@@ -354,6 +354,49 @@ export const radarConfig = pgTable('radar_config', {
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+// Cobertura da coleta do Radar: cada janela (período × UF × modalidade) fica
+// registrada como completa, incompleta ou com erro. Compartilhada entre
+// empresas — o PNCP é o mesmo para todas; só a classificação é por empresa.
+export const radarVarredura = pgTable('radar_varredura', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fonte: text('fonte').notNull().default('pncp'),
+    uf: text('uf').notNull(),
+    modalidade: integer('modalidade').notNull(),
+    dataInicial: text('data_inicial').notNull(), // AAAAMMDD
+    dataFinal: text('data_final').notNull(),
+    status: text('status').notNull(), // 'completa' | 'incompleta' | 'erro'
+    paginasLidas: integer('paginas_lidas').notNull().default(0),
+    totalPaginas: integer('total_paginas'),
+    totalRegistros: integer('total_registros'),
+    erro: text('erro'),
+    executadoEm: timestamp('executado_em', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+    uniqueIndex('radar_varredura_chave_unique').on(t.fonte, t.uf, t.modalidade, t.dataInicial, t.dataFinal),
+]);
+
+// Cópia local das contratações coletadas do PNCP, uma linha por edital. Evita
+// reconsultar a API a cada busca e é a base do acompanhamento de alterações.
+export const editalPncp = pgTable('edital_pncp', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    numeroControlePncp: text('numero_controle_pncp').notNull().unique(),
+    orgaoCnpj: text('orgao_cnpj'),
+    orgao: text('orgao'),
+    municipio: text('municipio'),
+    uf: text('uf'),
+    objeto: text('objeto'),
+    valorEstimado: numeric('valor_estimado', { precision: 16, scale: 2 }),
+    modalidade: text('modalidade'),
+    numeroProcesso: text('numero_processo'),
+    dataAberturaProposta: timestamp('data_abertura_proposta', { withTimezone: true }),
+    dataEncerramentoProposta: timestamp('data_encerramento_proposta', { withTimezone: true }),
+    dataPublicacaoPncp: timestamp('data_publicacao_pncp', { withTimezone: true }),
+    linkOrigem: text('link_origem'),
+    primeiraColetaEm: timestamp('primeira_coleta_em', { withTimezone: true }).notNull().defaultNow(),
+    atualizadoEm: timestamp('atualizado_em', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+    index('edital_pncp_uf_publicacao_idx').on(t.uf, t.dataPublicacaoPncp),
+]);
+
 // ── Ferramenta 6, Preparação Documental ────────────────────────────────────
 
 export const tipoDocumentoDossieEnum = pgEnum('tipo_documento_dossie', TIPOS_DOCUMENTO_DOSSIE);

@@ -3,13 +3,16 @@
 // Portal de Compras Públicas), filtra localmente (nenhuma das duas tem busca
 // por palavra-chave/CNAE) e persiste os achados como `participacao`.
 
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray } from 'drizzle-orm'
 import { db } from '@/app/src'
-import { cnaePorObjeto, empresa, participacao, radarConfig } from '@/app/src/db/schema'
-import { buscarContratacoesPncp } from '@/lib/pncp'
+import { cnaePorObjeto, editalPncp, empresa, participacao, radarConfig } from '@/app/src/db/schema'
+import { coletarPncp, DIAS_COLETA } from '@/lib/radar-coleta'
 import { buscarContratacoesPcp } from '@/lib/portal-compras-publicas'
 import { gerarPalavrasChaveCnae } from '@/lib/cnae-auto-geracao'
 import type { ContratacaoRadar, RadarConfig } from '@/types/radar-tipos'
+
+// Tempo que a coleta pode usar dentro de uma requisição (maxDuration da rota é 60s).
+const ORCAMENTO_COLETA_MS = 40_000
 
 const normalizar = (texto: string): string =>
   texto
@@ -146,16 +149,39 @@ export const executarRadar = async (empresaId: string, criadoPorUserId: string, 
     palavrasChaveCnae = await resolverPalavrasChaveCnae(dadosEmpresa?.cnaePrincipal ?? null, dadosEmpresa?.cnaesSecundarios ?? null)
   }
 
-  const [pncp, pcp] = await Promise.all([
-    buscarContratacoesPncp(config.estados),
-    buscarContratacoesPcp(config.estados), // inerte (retorna vazio) até a publicKey ser configurada
+  // 1) Coleta incremental: só o que ainda falta (janelas completas do passado
+  //    são puladas). O PCP continua inerte até a publicKey ser configurada.
+  const [coleta, pcp] = await Promise.all([
+    coletarPncp({ ufs: config.estados, orcamentoMs: ORCAMENTO_COLETA_MS }),
+    buscarContratacoesPcp(config.estados),
   ])
 
-  const brutos = [...pncp.resultados, ...pcp.resultados]
-  const chamadas = pncp.chamadas + pcp.chamadas
-  const falhas = [...pncp.falhas, ...pcp.falhas]
+  // 2) A busca lê da cópia local: mesmo que a coleta tenha ficado incompleta,
+  //    o que já foi coletado antes continua disponível.
+  const desde = new Date(Date.now() - DIAS_COLETA * 86_400_000)
+  const locais = await db
+    .select()
+    .from(editalPncp)
+    .where(and(inArray(editalPncp.uf, config.estados), gte(editalPncp.dataPublicacaoPncp, desde)))
 
-  if (chamadas > 0 && falhas.length === chamadas) {
+  const doPncp: ContratacaoRadar[] = locais.map((e) => ({
+    identificadorExterno: e.numeroControlePncp,
+    fonte: 'pncp',
+    orgao: e.orgao,
+    municipio: e.municipio,
+    uf: e.uf,
+    objeto: e.objeto,
+    valorEstimado: e.valorEstimado != null ? Number(e.valorEstimado) : null,
+    modalidade: e.modalidade,
+    numeroProcesso: e.numeroProcesso,
+    dataSessaoEm: e.dataAberturaProposta ? e.dataAberturaProposta.toISOString() : null,
+    linkPortalOrigem: e.linkOrigem,
+  }))
+
+  const brutos = [...doPncp, ...pcp.resultados]
+  const falhas = [...coleta.falhas, ...pcp.falhas]
+
+  if (brutos.length === 0 && coleta.erros > 0) {
     throw new Error(
       'Nenhuma fonte respondeu agora (instabilidade conhecida do PNCP, por exemplo). Tente novamente em alguns minutos.'
     )
@@ -206,7 +232,11 @@ export const executarRadar = async (empresaId: string, criadoPorUserId: string, 
     .where(eq(radarConfig.empresaId, empresaId))
 
   const avisos: string[] = []
-  if (falhas.length > 0) avisos.push(`${falhas.length} de ${chamadas} consulta(s) falharam — a lista pode estar incompleta.`)
+  if (coleta.restantes > 0) {
+    avisos.push(
+      `A coleta do PNCP ainda não cobriu todo o período (${coleta.restantes} janela(s) pendente(s)${falhas.length > 0 ? `, ${falhas.length} com falha` : ''}). Execute o radar de novo para continuar de onde parou.`
+    )
+  }
   if (palavrasChaveCnae?.geradoAgora) {
     avisos.push(
       'Palavras-chave deste CNAE foram geradas automaticamente agora (sem revisão da Arumã) — os resultados podem ter mais ruído até alguém revisar.'
@@ -215,6 +245,7 @@ export const executarRadar = async (empresaId: string, criadoPorUserId: string, 
 
   return {
     encontrados: filtrados.length,
+    coleta: { gravados: coleta.gravados, restantes: coleta.restantes },
     novos: novosIds.length,
     novosIds,
     aviso: avisos.length > 0 ? avisos.join(' ') : null,

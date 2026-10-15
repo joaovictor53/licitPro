@@ -9,6 +9,9 @@ import { obterOuCriarEmpresa } from '@/lib/empresa-server'
 import { executarRadar, listarParticipacoesDoRadar } from '@/lib/radar-server'
 import type { RadarConfig } from '@/types/radar-tipos'
 
+// A coleta do PNCP pode levar até ~40s; sem isto a plataforma corta antes.
+export const maxDuration = 60
+
 const CONFIG_PADRAO: RadarConfig = {
   modoBusca: 'cnae',
   esfera: null,

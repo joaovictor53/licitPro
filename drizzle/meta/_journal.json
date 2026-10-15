@@ -148,6 +148,13 @@
       "when": 1791990104888,
       "tag": "0020_condicoes_proposta",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792092986447,
+      "tag": "0021_radar_coleta",
+      "breakpoints": true
     }
   ]
 }
