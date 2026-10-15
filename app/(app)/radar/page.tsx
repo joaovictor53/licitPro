@@ -36,6 +36,7 @@ interface ParticipacaoRadar {
   notaRadar: number | null
   termosRadar: string[] | null
   alteracoes: { campo: string; antes: string | null; depois: string | null }[]
+  semaforoOrgao: { cor: 'verde' | 'amarelo' | 'vermelho' | 'cinza'; pontos: number | null; motivos: string[] }
 }
 
 interface RadarConfigForm {
@@ -67,6 +68,13 @@ const ROTULOS_ALTERACAO: Record<string, string> = {
   dataEncerramentoProposta: 'Encerramento das propostas',
   modalidade: 'Modalidade',
   linkOrigem: 'Link do processo',
+}
+
+const COR_SEMAFORO: Record<string, string> = {
+  verde: 'bg-emerald-500',
+  amarelo: 'bg-amber-400',
+  vermelho: 'bg-red-500',
+  cinza: 'bg-slate-400',
 }
 
 const separarLista = (texto: string): string[] =>
@@ -385,7 +393,14 @@ export default function RadarPage() {
                             Novo edital encontrado
                           </Badge>
                         )}
-                        <div className="font-medium truncate">{p.orgao}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`inline-block size-2.5 shrink-0 rounded-full ${COR_SEMAFORO[p.semaforoOrgao.cor]}`}
+                            title={`Pagamento do órgão (seu histórico): ${p.semaforoOrgao.cor}\n${p.semaforoOrgao.motivos.join('\n')}`}
+                            aria-label={`Semáforo de pagamento do órgão: ${p.semaforoOrgao.cor}`}
+                          />
+                          <div className="font-medium truncate">{p.orgao}</div>
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {[p.municipio, p.uf].filter(Boolean).join(' — ') || 'Local não informado'}
                         </div>

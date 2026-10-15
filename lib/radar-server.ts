@@ -16,6 +16,8 @@ import {
   type RegrasClassificacao,
   type ResultadoClassificacao,
 } from '@/lib/classificacao-radar'
+import { obterIndicadorPagamentoOrgao } from '@/lib/indicador-pagamento-orgao'
+import { calcularSemaforoOrgao } from '@/lib/semaforo-orgao'
 import { buscarDescricoesDosItens, lerNumeroControlePncp, pausaEntreConsultasDeItens } from '@/lib/radar-itens'
 import type { ContratacaoRadar, RadarConfig } from '@/types/radar-tipos'
 
@@ -337,7 +339,23 @@ export const listarParticipacoesDoRadar = async (empresaId: string) => {
     .orderBy(asc(participacao.dataSessaoEm))
 
   const alteracoes = await alteracoesDasParticipacoes(linhas)
-  return linhas.map((p) => ({ ...p, alteracoes: alteracoes.get(p.id) ?? [] }))
+
+  // Um cálculo por órgão distinto, não por edital.
+  const orgaos = [...new Set(linhas.map((p) => p.orgao))]
+  const semaforos = new Map(
+    await Promise.all(
+      orgaos.map(async (orgao) => {
+        const indicador = await obterIndicadorPagamentoOrgao(empresaId, orgao)
+        return [orgao, calcularSemaforoOrgao(indicador)] as const
+      })
+    )
+  )
+
+  return linhas.map((p) => ({
+    ...p,
+    alteracoes: alteracoes.get(p.id) ?? [],
+    semaforoOrgao: semaforos.get(p.orgao)!,
+  }))
 }
 
 export interface AlteracaoDoEdital {
