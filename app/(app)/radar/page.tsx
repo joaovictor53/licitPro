@@ -32,6 +32,9 @@ interface ParticipacaoRadar {
   valorEstimado: string | null
   dataSessaoEm: string | null
   linkPortalOrigem: string | null
+  categoriaRadar: 'relevante' | 'talvez' | 'irrelevante' | null
+  notaRadar: number | null
+  termosRadar: string[] | null
 }
 
 interface RadarConfigForm {
@@ -377,7 +380,23 @@ export default function RadarPage() {
                           {[p.municipio, p.uf].filter(Boolean).join(' — ') || 'Local não informado'}
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-60 whitespace-normal">{p.objeto}</TableCell>
+                      <TableCell className="max-w-60 whitespace-normal">
+                        {p.categoriaRadar === 'talvez' && (
+                          <Badge
+                            variant="outline"
+                            className="mb-1 mr-1"
+                            title="O objeto sozinho não decide. Os itens do edital são consultados para reavaliar."
+                          >
+                            Talvez
+                          </Badge>
+                        )}
+                        {p.termosRadar && p.termosRadar.length > 0 && (
+                          <span className="mb-1 block text-xs text-muted-foreground">
+                            Casou com: {p.termosRadar.join(', ')}
+                          </span>
+                        )}
+                        {p.objeto}
+                      </TableCell>
                       <TableCell>{formatarValor(p.valorEstimado)}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{formatarQuantoFalta(p.dataSessaoEm)}</Badge>

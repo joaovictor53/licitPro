@@ -3,16 +3,26 @@
 // Portal de Compras Públicas), filtra localmente (nenhuma das duas tem busca
 // por palavra-chave/CNAE) e persiste os achados como `participacao`.
 
-import { and, asc, eq, gte, inArray } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, like } from 'drizzle-orm'
 import { db } from '@/app/src'
 import { cnaePorObjeto, editalPncp, empresa, participacao, radarConfig } from '@/app/src/db/schema'
 import { coletarPncp, DIAS_COLETA } from '@/lib/radar-coleta'
 import { buscarContratacoesPcp } from '@/lib/portal-compras-publicas'
 import { gerarPalavrasChaveCnae } from '@/lib/cnae-auto-geracao'
+import {
+  classificarTexto,
+  regrasPadrao,
+  termosDeBusca,
+  type RegrasClassificacao,
+  type ResultadoClassificacao,
+} from '@/lib/classificacao-radar'
+import { buscarDescricoesDosItens, lerNumeroControlePncp, pausaEntreConsultasDeItens } from '@/lib/radar-itens'
 import type { ContratacaoRadar, RadarConfig } from '@/types/radar-tipos'
 
 // Tempo que a coleta pode usar dentro de uma requisição (maxDuration da rota é 60s).
-const ORCAMENTO_COLETA_MS = 40_000
+const ORCAMENTO_COLETA_MS = 30_000
+const ORCAMENTO_ITENS_MS = 15_000
+const MAX_REAVALIACOES_POR_EXECUCAO = 8
 
 const normalizar = (texto: string): string =>
   texto
@@ -92,32 +102,77 @@ const resolverPalavrasChaveCnae = async (
   }
 }
 
-const filtrarPorCnae = (
-  contratacoes: ContratacaoRadar[],
-  busca: string[],
-  naoTraz: string[]
-): ContratacaoRadar[] =>
-  contratacoes.filter((c) => {
-    const objeto = normalizar(c.objeto ?? '')
-    if (objeto === '') return false
-    return contemAlgum(objeto, busca) && !contemAlgum(objeto, naoTraz)
-  })
+const dentroDaFaixa = (c: ContratacaoRadar, faixaMin: number | null, faixaMax: number | null): boolean => {
+  if (faixaMin != null && (c.valorEstimado == null || c.valorEstimado < faixaMin)) return false
+  if (faixaMax != null && (c.valorEstimado == null || c.valorEstimado > faixaMax)) return false
+  return true
+}
 
-const filtrarPorTextoLivre = (
-  contratacoes: ContratacaoRadar[],
-  texto: string,
-  faixaMin: number | null,
-  faixaMax: number | null
-): ContratacaoRadar[] => {
-  const alvo = normalizar(texto)
-  return contratacoes.filter((c) => {
-    const objeto = normalizar(c.objeto ?? '')
-    if (!objeto.includes(alvo)) return false
-    const valor = c.valorEstimado
-    if (faixaMin != null && (valor == null || valor < faixaMin)) return false
-    if (faixaMax != null && (valor == null || valor > faixaMax)) return false
-    return true
-  })
+interface Classificada {
+  contratacao: ContratacaoRadar
+  resultado: ResultadoClassificacao
+}
+
+/** Mantém relevantes e "talvez"; só o irrelevante é descartado. */
+const classificarContratacoes = (contratacoes: ContratacaoRadar[], regras: RegrasClassificacao): Classificada[] =>
+  contratacoes
+    .filter((c) => (c.objeto ?? '').trim() !== '')
+    .map((c) => ({ contratacao: c, resultado: classificarTexto(c.objeto!, regras) }))
+    .filter((c) => c.resultado.categoria !== 'irrelevante')
+
+/**
+ * "Talvez" ainda sem itens consultados: busca a descrição dos itens no PNCP e
+ * reclassifica objeto + itens. Poucos por execução (cada consulta é uma
+ * chamada à API); o resto fica para a próxima.
+ */
+const reavaliarPelosItens = async (empresaId: string, regras: RegrasClassificacao, orcamentoMs: number) => {
+  const limite = Date.now() + orcamentoMs
+  const candidatas = await db
+    .select()
+    .from(participacao)
+    .where(and(
+      eq(participacao.empresaId, empresaId),
+      eq(participacao.categoriaRadar, 'talvez'),
+      isNull(participacao.itensConsultadosEm),
+      like(participacao.numeroControlePncp, 'pncp:%'),
+    ))
+    .limit(MAX_REAVALIACOES_POR_EXECUCAO)
+
+  let reavaliadas = 0
+  let promovidas = 0
+  let descartadas = 0
+
+  for (const p of candidatas) {
+    if (Date.now() >= limite) break
+    const chave = lerNumeroControlePncp(p.numeroControlePncp ?? '')
+    if (!chave) continue
+
+    const descricoes = await buscarDescricoesDosItens(chave)
+    // Falha de rede não marca como consultado: tenta de novo na próxima.
+    if (descricoes === null) {
+      await pausaEntreConsultasDeItens()
+      continue
+    }
+
+    const resultado = classificarTexto(`${p.objeto} ${descricoes.join(' ')}`, regras)
+    await db
+      .update(participacao)
+      .set({
+        categoriaRadar: resultado.categoria,
+        notaRadar: resultado.nota,
+        termosRadar: resultado.termosEncontrados,
+        itensConsultadosEm: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(participacao.id, p.id))
+
+    reavaliadas++
+    if (resultado.categoria === 'relevante') promovidas++
+    if (resultado.categoria === 'irrelevante') descartadas++
+    await pausaEntreConsultasDeItens()
+  }
+
+  return { reavaliadas, promovidas, descartadas }
 }
 
 const filtrarPorOrgaos = (
@@ -187,15 +242,23 @@ export const executarRadar = async (empresaId: string, criadoPorUserId: string, 
     )
   }
 
-  const filtradosPorObjeto: ContratacaoRadar[] =
+  const regras: RegrasClassificacao =
     config.modoBusca === 'livre'
-      ? filtrarPorTextoLivre(brutos, config.textoLivre!, config.faixaValorMin, config.faixaValorMax)
-      : filtrarPorCnae(brutos, palavrasChaveCnae!.busca, palavrasChaveCnae!.naoTraz)
+      ? regrasPadrao([{ termo: config.textoLivre!.trim(), peso: 2 }], [])
+      : regrasPadrao(termosDeBusca(palavrasChaveCnae!.busca), palavrasChaveCnae!.naoTraz)
 
-  const filtrados = filtrarPorOrgaos(filtradosPorObjeto, config.orgaosIncluir, config.orgaosExcluir)
+  const candidatosPorValor =
+    config.modoBusca === 'livre'
+      ? brutos.filter((c) => dentroDaFaixa(c, config.faixaValorMin, config.faixaValorMax))
+      : brutos
+
+  const classificadas = classificarContratacoes(candidatosPorValor, regras)
+  const porOrgao = filtrarPorOrgaos(classificadas.map((c) => c.contratacao), config.orgaosIncluir, config.orgaosExcluir)
+  const permitidos = new Set(porOrgao)
+  const filtrados = classificadas.filter((c) => permitidos.has(c.contratacao))
 
   const novosIds: string[] = []
-  for (const c of filtrados) {
+  for (const { contratacao: c, resultado } of filtrados) {
     if (!c.identificadorExterno || !c.objeto) continue
 
     const inserido = await db
@@ -219,12 +282,17 @@ export const executarRadar = async (empresaId: string, criadoPorUserId: string, 
         dataSessaoEm: c.dataSessaoEm ? new Date(c.dataSessaoEm) : null,
         fusoEdital: 'America/Sao_Paulo',
         linkPortalOrigem: c.linkPortalOrigem,
+        categoriaRadar: resultado.categoria,
+        notaRadar: resultado.nota,
+        termosRadar: resultado.termosEncontrados,
       })
       .onConflictDoNothing({ target: [participacao.empresaId, participacao.numeroControlePncp] })
       .returning({ id: participacao.id })
 
     if (inserido.length > 0) novosIds.push(inserido[0].id)
   }
+
+  const itens = await reavaliarPelosItens(empresaId, regras, ORCAMENTO_ITENS_MS)
 
   await db
     .update(radarConfig)
@@ -246,6 +314,7 @@ export const executarRadar = async (empresaId: string, criadoPorUserId: string, 
   return {
     encontrados: filtrados.length,
     coleta: { gravados: coleta.gravados, restantes: coleta.restantes },
+    itens,
     novos: novosIds.length,
     novosIds,
     aviso: avisos.length > 0 ? avisos.join(' ') : null,

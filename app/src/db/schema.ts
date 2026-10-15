@@ -184,6 +184,14 @@ export const participacao = pgTable('participacao', {
     linkEdital: text('link_edital'),
     linkPortalOrigem: text('link_portal_origem'),
 
+    // Classificação do Radar: nota por termos ponderados e categoria
+    // (relevante | talvez | irrelevante). Nula nas participações criadas à mão
+    // ou antes desta classificação. Itens consultados = "talvez" já reavaliado.
+    categoriaRadar: text('categoria_radar'),
+    notaRadar: integer('nota_radar'),
+    termosRadar: text('termos_radar').array(),
+    itensConsultadosEm: timestamp('itens_consultados_em', { withTimezone: true }),
+
     // "O que fica guardado": quem clicou em analisar a fundo, e quando.
     analisadoPorUserId: text('analisado_por_user_id').references(() => user.id),
     analisadoEm: timestamp('analisado_em', { withTimezone: true }),

@@ -155,6 +155,13 @@
       "when": 1792092986447,
       "tag": "0021_radar_coleta",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792093275043,
+      "tag": "0022_radar_classificacao",
+      "breakpoints": true
     }
   ]
 }
