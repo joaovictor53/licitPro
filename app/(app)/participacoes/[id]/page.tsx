@@ -4,8 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, FileText, ShieldAlert, Upload } from 'lucide-react'
+import { AlertTriangle, ShieldAlert, Upload } from 'lucide-react'
 import { useSession } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -166,68 +165,8 @@ export default function ParticipacaoPage() {
   const criticos = exigencias.filter((e) => e.risco !== 'sanavel' && e.situacao === 'a_verificar').length
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-md shrink-0">
-            <FileText className="w-4 h-4 text-primary-foreground" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold tracking-tight leading-tight truncate">{participacao.orgao}</h1>
-            <p className="text-xs text-muted-foreground font-medium truncate">{participacao.objeto}</p>
-          </div>
-        </div>
-      </header>
-
+    <div className="bg-background">
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <Button variant="outline" size="xs" nativeButton={false} render={<Link href="/radar" />}>
-            <ArrowLeft />
-            Voltar ao radar
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/recurso`} />}>
-              Ficha do recurso
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/documentos`} />}>
-              Documentos
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/viabilidade`} />}>
-              Viabilidade
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/decisao`} />}>
-              Decisão
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/precos`} />}>
-              Preços
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/proposta`} />}>
-              Proposta
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/aprovacao`} />}>
-              Aprovação
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/upload`} />}>
-              Upload
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/envio`} />}>
-              Envio
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/sessao`} />}>
-              Sessão
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/habilitacao`} />}>
-              Habilitação
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/recurso-fase`} />}>
-              Recurso
-            </Button>
-            <Button variant="outline" size="xs" nativeButton={false} render={<Link href={`/participacoes/${id}/resultado`} />}>
-              Resultado
-            </Button>
-          </div>
-        </div>
-
         <Card>
           <CardHeader>
             <CardTitle>Edital</CardTitle>

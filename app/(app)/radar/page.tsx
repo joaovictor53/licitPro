@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, FileSearch, Radar as RadarIcon, Sparkles, XCircle } from 'lucide-react'
+import { AlertTriangle, FileSearch, Radar as RadarIcon, Sparkles, XCircle } from 'lucide-react'
 import { useSession } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -197,15 +197,6 @@ export default function RadarPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        <Button
-          variant="outline"
-          size="xs"
-          nativeButton={false}
-          render={<Link href="/dashboard" />}
-        >
-          <ArrowLeft />
-          Voltar ao painel
-        </Button>
 
         <Card>
           <CardHeader>

@@ -1,7 +1,6 @@
 // app/planos/page.tsx
 
-import Link from 'next/link'
-import { ArrowLeft, Check, ShieldAlert, Sparkles } from 'lucide-react'
+import { Check, ShieldAlert, Sparkles } from 'lucide-react'
 import { exigirUsuario } from '@/lib/sessao'
 import { PLANOS, ehPlanoValido, PLANO_PADRAO, type PlanoId } from '@/lib/planos'
 import { cn } from '@/lib/utils'
@@ -61,10 +60,6 @@ export default async function PlanosPage() {
               </p>
             </div>
           </div>
-          <Link href="/dashboard" className={buttonVariants({ variant: 'outline', size: 'xs' })}>
-            <ArrowLeft />
-            Voltar
-          </Link>
         </div>
 
         <Separator className="my-6" />

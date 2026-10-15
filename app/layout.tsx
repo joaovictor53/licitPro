@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Sans } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
-const notoSans = Noto_Sans({ subsets: ['latin'], variable: '--font-sans' });
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// Fonte do Proposta Certa, embutida (funciona sem internet).
+const figtree = localFont({
+  src: "./fonts/Figtree-Variable.woff2",
+  variable: "--font-texto",
+  weight: "400 700",
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -16,10 +18,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'LicitPro Analyzer — Analisador de Inabilitação',
+  title: 'LicitPro — do edital ao contrato',
   description:
-    'Carregue o edital e a proposta do concorrente. O sistema identifica não conformidades e gera o recurso administrativo pronto para protocolo.',
+    'Encontre editais, analise exigências, monte a proposta, acompanhe a sessão e a habilitação, e confira a proposta do concorrente — tudo em um só lugar.',
 }
+
+// Aplica o tema salvo antes da pintura, para a página não piscar no tema errado.
+const SCRIPT_TEMA = `try{if(localStorage.getItem('tema')==='escuro')document.documentElement.classList.add('dark')}catch(e){}`
 
 export default function RootLayout({
   children,
@@ -29,19 +34,16 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={cn("h-full", "antialiased", notoSans.variable, geistSans.variable, "font-sans", notoSans.variable)}
+      suppressHydrationWarning
+      className={cn("h-full", "antialiased", figtree.variable, geistMono.variable, "font-sans")}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
+      </head>
       <body className="min-h-full flex flex-col">
         <div className="min-h-full grow flex flex-col">
           {children}
         </div>
-        <footer className="shrink-0 bg-slate-50 px-4 py-4">
-          <div className="max-w-2xl mx-auto">
-            <p className="text-xs text-slate-600">
-              © {new Date().getFullYear()} LicitPro Analyzer — Analisador de Inabilitação
-            </p>
-          </div>
-        </footer>
       </body>
     </html>
   )

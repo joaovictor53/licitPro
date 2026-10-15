@@ -2,16 +2,7 @@
 
 import Link from 'next/link'
 import { eq, desc, count, countDistinct, gte, sql } from 'drizzle-orm'
-import {
-  ShieldAlert,
-  ArrowLeft,
-  BarChart3,
-  Users,
-  CalendarDays,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle,
-} from 'lucide-react'
+import { ShieldAlert, BarChart3, Users, CalendarDays, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react'
 import { exigirAdmin } from '@/lib/sessao'
 import { db } from '@/app/src'
 import { analise, user } from '@/app/src/db/schema'
@@ -178,10 +169,6 @@ export default async function AdminPage() {
               </p>
             </div>
           </div>
-          <Link href="/dashboard" className={buttonVariants({ variant: 'outline', size: 'xs' })}>
-            <ArrowLeft />
-            Voltar
-          </Link>
         </div>
 
         <Separator className="my-6" />

@@ -4,24 +4,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Scan,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  FileSearch,
-  LogOut,
-  MessageSquare,
-  RefreshCw,
-  ShieldAlert,
-  History,
-  BarChart3,
-  Gem,
-  UserCircle,
-  SearchCheck,
-  MailWarning,
-  Radar,
-} from "lucide-react";
+import { Scan, AlertTriangle, CheckCircle, Clock, FileSearch, MessageSquare, RefreshCw, Gem, SearchCheck, MailWarning } from "lucide-react"
 import type { StatusPlano } from "@/lib/planos";
 import Link from "next/link";
 import { UploadCard } from "@/components/upload-card";
@@ -139,11 +122,6 @@ export default function DashboardPage() {
     }
   };
 
-  const sair = async () => {
-    await authClient.signOut();
-    router.push("/login");
-    router.refresh();
-  };
 
   const reiniciar = () => {
     setEdital(null);
@@ -194,80 +172,10 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-background py-10 px-4">
       <div className="max-w-2xl mx-auto">
         {/* Cabeçalho */}
-        <div className="flex items-center justify-between gap-3 mb-1">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-sm">
-              <ShieldAlert className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">
-                LicitPro Analyzer
-              </h1>
-              <p className="text-xs text-muted-foreground font-medium">
-                Analisador de Inabilitação
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="xs"
-              nativeButton={false}
-              render={<Link href="/radar" />}
-            >
-              <Radar />
-              Radar
-            </Button>
-            <Button
-              variant="outline"
-              size="xs"
-              nativeButton={false}
-              render={<Link href="/historico" />}
-            >
-              <History />
-              Histórico
-            </Button>
-            <Button
-              variant="outline"
-              size="xs"
-              nativeButton={false}
-              render={<Link href="/planos" />}
-            >
-              <Gem />
-              Planos
-            </Button>
-            <Button
-              variant="outline"
-              size="xs"
-              nativeButton={false}
-              render={<Link href="/perfil" />}
-            >
-              <UserCircle />
-              Perfil
-            </Button>
-            {sessao.user.role === "admin" && (
-              <Button
-                variant="outline"
-                size="xs"
-                className="text-primary"
-                nativeButton={false}
-                render={<Link href="/admin" />}
-              >
-                <BarChart3 />
-                Admin
-              </Button>
-            )}
-            <span className="text-xs text-muted-foreground hidden sm:inline">
-              {sessao.user.email}
-            </span>
-            <Button id="btn-sair" variant="outline" size="xs" onClick={sair}>
-              <LogOut />
-              Sair
-            </Button>
-          </div>
+        <div className="mb-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Analisador de inabilitação</h1>
         </div>
-        <p className="text-sm text-muted-foreground mb-8 pl-13">
+        <p className="text-sm text-muted-foreground mb-8">
           Carregue o edital e a proposta do concorrente — o sistema identifica
           as brechas e gera o recurso pronto para protocolo.
         </p>

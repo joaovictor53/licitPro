@@ -62,10 +62,6 @@ export default async function HistoricoPage() {
               </p>
             </div>
           </div>
-          <Link href="/dashboard" className={buttonVariants({ variant: 'outline', size: 'xs' })}>
-            <ArrowLeft />
-            Voltar
-          </Link>
         </div>
 
         <Separator className="my-6" />

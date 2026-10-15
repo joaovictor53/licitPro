@@ -3,11 +3,9 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react"
 import { useSession } from "@/lib/auth-client";
 import { EmpresaForm } from "@/components/empresa-form";
-import { Button } from "@/components/ui/button";
 
 export default function PerfilPage() {
   const router = useRouter();
@@ -40,16 +38,6 @@ export default function PerfilPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
-        <Button
-          variant="outline"
-          size="xs"
-          nativeButton={false}
-          render={<Link href="/dashboard" />}
-          className="mb-4"
-        >
-          <ArrowLeft />
-          Voltar ao painel
-        </Button>
 
         <EmpresaForm />
       </main>
